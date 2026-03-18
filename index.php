@@ -20,42 +20,42 @@ if (isLoggedIn()) {
 
 // Handle login form submission
 $error = '';
+$errorType = 'danger'; // Bootstrap alert class
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
-        $error = 'Invalid request. Please try again.';
-    }
-    else {
+        $error = 'Invalid request. Please refresh the page and try again.';
+    } else {
         $username = sanitizeInput($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
-        $ipAddress = $_SERVER['REMOTE_ADDR'] ?? '';
 
-        $lockout = getLockoutState($ipAddress);
-        if ($lockout !== false) {
-            $mins = $lockout['minutes'];
-            $secs = $lockout['seconds'];
-            $timeString = ($mins > 0) ? "$mins minute(s)" : "";
-            $timeString .= ($mins > 0 && $secs > 0) ? " and " : "";
-            $timeString .= ($secs > 0 || $mins == 0) ? "$secs second(s)" : "";
-            
-            $error = "Too many failed login attempts. Please try again in $timeString.";
-            logAudit(0, 'LOGIN_FAILED', 'users', 0, null, "Rate limit exceeded for IP: $ipAddress");
-        }
-        else if (empty($username) || empty($password)) {
-            $error = 'Please enter both username and password';
-        }
-        else {
-            $user = authenticateUser($username, $password);
+        if (empty($username) || empty($password)) {
+            $error = 'Please enter both username and password.';
+        } else {
+            $result = authenticateUser($username, $password);
 
-            if ($user) {
-                clearLoginAttempts($ipAddress);
-                createUserSession($user);
-                $targetDir = ($user['role'] === 'registrar_staff') ? 'registrar' : $user['role'];
-                header("Location: $targetDir/dashboard.php");
+            if (is_array($result)) {
+                // Successful login
+                createUserSession($result);
+                $targetDir = ($result['role'] === 'registrar_staff') ? 'registrar' : $result['role'];
+                header("Location: {$targetDir}/dashboard.php");
                 exit();
-            }
-            else {
-                logFailedAttempt($ipAddress);
-                $error = 'Invalid username or password';
+            } elseif (is_string($result)) {
+                if (str_starts_with($result, 'locked:')) {
+                    $mins = (int) explode(':', $result)[1];
+                    $errorType = 'warning';
+                    $error = "<i class='fas fa-lock me-2'></i>Account temporarily locked due to too many failed attempts. "
+                           . "Please try again in <strong>{$mins} minute(s)</strong>. "
+                           . "Contact your administrator if this was a mistake.";
+                } elseif ($result === 'account_inactive') {
+                    $errorType = 'warning';
+                    $error = "<i class='fas fa-user-slash me-2'></i>Your account is inactive. Please contact the system administrator.";
+                } elseif (str_starts_with($result, 'invalid_credentials:')) {
+                    $attLeft = (int) explode(':', $result)[1];
+                    $error = "<i class='fas fa-exclamation-circle me-2'></i>Invalid username or password. "
+                           . "<strong>{$attLeft} attempt(s)</strong> remaining before lockout.";
+                } else {
+                    $error = "<i class='fas fa-exclamation-circle me-2'></i>Invalid username or password.";
+                }
             }
         }
     }
@@ -321,12 +321,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <div class="login-body">
                 <?php if (!empty($error)): ?>
-                    <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4" role="alert" style="border-radius: 1rem; background: rgba(231, 76, 60, 0.1); color: #c0392b;">
-                        <i class="fas fa-exclamation-circle me-2"></i> <?php echo $error; ?>
+                    <div class="alert alert-<?php echo $errorType; ?> alert-dismissible fade show border-0 shadow-sm mb-4" role="alert" style="border-radius: 1rem;">
+                        <?php echo $error; ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                <?php
-endif; ?>
+                <?php endif; ?>
                 
                 <?php echo getFlashMessage(); ?>
                 
@@ -366,13 +365,19 @@ endif; ?>
                         </div>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary btn-login w-100 mb-4">
+                    <button type="submit" class="btn btn-primary btn-login w-100 mb-3">
                         Login to Portal <i class="fas fa-arrow-right ms-2"></i>
                     </button>
-                    
+
+                    <div class="text-center mb-3">
+                        <a href="forgot_password.php" class="text-muted" style="font-size:0.85rem; text-decoration:none;">
+                            <i class="fas fa-key me-1"></i> Forgot Password?
+                        </a>
+                    </div>
+
                     <div class="text-center">
-                        <small class="text-muted fw-500">
-                            <i class="fas fa-headset me-1 text-primary"></i> 
+                        <small class="text-muted">
+                            <i class="fas fa-headset me-1 text-primary"></i>
                             Need help? Contact system administrator
                         </small>
                     </div>

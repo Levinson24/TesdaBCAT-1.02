@@ -153,37 +153,42 @@ $totalUnits = $totalUnitsResult->fetch_assoc()['total'] ?? 0;
 <div class="card custom-table">
     <div class="card-header bg-primary text-white">
         <div class="row align-items-center">
-            <div class="col-md-6">
+            <div class="col-md-5">
                 <h5 class="mb-0"><i class="fas fa-list"></i> My Grades</h5>
             </div>
-            <div class="col-md-6">
-                <form method="GET" class="row g-2">
-                    <div class="col-md-5">
-                        <select name="year" class="form-select form-select-sm">
-                            <option value="">All Years</option>
-                            <?php while ($year = $years->fetch_assoc()): ?>
-                                <option value="<?php echo $year['school_year']; ?>" 
-                                    <?php echo $filterYear === $year['school_year'] ? 'selected' : ''; ?>>
-                                    <?php echo $year['school_year']; ?>
-                                </option>
-                            <?php
-endwhile; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-5">
-                        <select name="semester" class="form-select form-select-sm">
-                            <option value="">All Semesters</option>
-                            <option value="1st" <?php echo $filterSemester === '1st' ? 'selected' : ''; ?>>1st Semester</option>
-                            <option value="2nd" <?php echo $filterSemester === '2nd' ? 'selected' : ''; ?>>2nd Semester</option>
-                            <option value="Summer" <?php echo $filterSemester === 'Summer' ? 'selected' : ''; ?>>Summer</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-light btn-sm w-100">
-                            <i class="fas fa-filter"></i>
-                        </button>
-                    </div>
-                </form>
+            <div class="col-md-7">
+                <div class="d-flex gap-2 align-items-center">
+                    <form method="GET" class="row g-2 flex-grow-1">
+                        <div class="col">
+                            <select name="year" class="form-select form-select-sm">
+                                <option value="">All Years</option>
+                                <?php while ($year = $years->fetch_assoc()): ?>
+                                    <option value="<?php echo $year['school_year']; ?>" 
+                                        <?php echo $filterYear === $year['school_year'] ? 'selected' : ''; ?>>
+                                        <?php echo $year['school_year']; ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <select name="semester" class="form-select form-select-sm">
+                                <option value="">All Semesters</option>
+                                <option value="1st" <?php echo $filterSemester === '1st' ? 'selected' : ''; ?>>1st Semester</option>
+                                <option value="2nd" <?php echo $filterSemester === '2nd' ? 'selected' : ''; ?>>2nd Semester</option>
+                                <option value="Summer" <?php echo $filterSemester === 'Summer' ? 'selected' : ''; ?>>Summer</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-light btn-sm">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                    </form>
+                    <a href="grade_report_pdf.php" target="_blank"
+                       class="btn btn-light btn-sm text-primary fw-600 text-nowrap" title="Download Grade Report PDF">
+                        <i class="fas fa-file-pdf me-1"></i> Download PDF
+                    </a>
+                </div>
             </div>
         </div>
     </div>

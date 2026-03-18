@@ -1,0 +1,29 @@
+# ──────────────────────────────────────────────
+# TesdaBCAT-1.02  —  .gitignore
+# ──────────────────────────────────────────────
+
+# PHP Dependencies (use composer install to restore)
+/vendor/
+composer.phar
+
+# Exported / generated files
+/exports/
+/logs/
+
+# Environment & secrets
+.env
+config/local.php
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# PHP error logs
+*.log
+error_log

@@ -94,7 +94,7 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_PO
         redirectWithMessage('enrollments.php', 'Invalid security token. Please try again.', 'danger');
     }
     $enrollmentId = intval($_POST['enrollment_id']);
-    
+
     // Check if grades already exist for this enrollment
     $checkGrades = $conn->prepare("SELECT grade_id FROM grades WHERE enrollment_id = ?");
     $checkGrades->bind_param("i", $enrollmentId);
@@ -109,7 +109,8 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_PO
     if ($stmt->execute()) {
         logAudit(getCurrentUserId(), 'DELETE', 'enrollments', $enrollmentId, null, "Unenrolled ID: $enrollmentId");
         redirectWithMessage('enrollments.php', 'Student unenrolled successfully.', 'success');
-    } else {
+    }
+    else {
         redirectWithMessage('enrollments.php', 'Failed to unenroll student.', 'danger');
     }
 }
@@ -183,11 +184,16 @@ $programs = $conn->query("SELECT p.program_id, p.program_name, d.title_diploma_p
 ?>
 
 <div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
         <h5 class="mb-0"><i class="fas fa-user-plus"></i> Enrollment Management</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Enroll Student
-        </button>
+        <div class="d-flex gap-2">
+            <a href="bulk_enroll.php" class="btn btn-light btn-sm text-primary fw-600">
+                <i class="fas fa-users-cog me-1"></i> Bulk Enroll
+            </a>
+            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus"></i> Enroll Student
+            </button>
+        </div>
     </div>
     <div class="card-body">
         <table class="table table-hover data-table">
@@ -216,7 +222,8 @@ $programs = $conn->query("SELECT p.program_id, p.program_name, d.title_diploma_p
                                 <i class="fas fa-user-minus"></i>
                             </button>
                         </form>
-                        <?php endif; ?>
+                        <?php
+    endif; ?>
                     </td></tr>
                 <?php
 endwhile; ?>

@@ -74,37 +74,88 @@ function csrfField()
  * Authenticate user login
  * @param string $username
  * @param string $password
- * @return array|false User data or false
+ * @return array|string User data on success, error string on failure
  */
 function authenticateUser($username, $password)
 {
     $conn = getDBConnection();
 
-    $stmt = $conn->prepare("SELECT user_id, username, password, role, status FROM users WHERE username = ? AND status = 'active'");
+    // Include lockout columns if they exist
+    $stmt = $conn->prepare("
+        SELECT user_id, username, password, role, status,
+               COALESCE(failed_attempts, 0) AS failed_attempts,
+               lockout_until
+        FROM users WHERE username = ?
+    ");
     $stmt->bind_param("s", $username);
     $stmt->execute();
     $result = $stmt->get_result();
+    $stmt->close();
 
-    if ($result->num_rows === 1) {
-        $user = $result->fetch_assoc();
-
-        // Verify password
-        if (password_verify($password, $user['password'])) {
-            // Update last login & start tracking session
-            $updateStmt = $conn->prepare("UPDATE users SET last_login = NOW(), session_start = NOW(), last_activity = NOW() WHERE user_id = ?");
-            $updateStmt->bind_param("i", $user['user_id']);
-            $updateStmt->execute();
-            $updateStmt->close();
-
-            // Log successful login
-            logAudit($user['user_id'], 'LOGIN', 'users', $user['user_id'], null, 'Successful login');
-
-            return $user;
-        }
+    if ($result->num_rows === 0) {
+        return 'invalid_credentials';
     }
 
-    $stmt->close();
-    return false;
+    $user = $result->fetch_assoc();
+
+    // Check account status
+    if ($user['status'] !== 'active') {
+        return 'account_inactive';
+    }
+
+    // Check brute-force lockout
+    if (!empty($user['lockout_until']) && strtotime($user['lockout_until']) > time()) {
+        $remaining = ceil((strtotime($user['lockout_until']) - time()) / 60);
+        return 'locked:' . $remaining;
+    }
+
+    // Verify password
+    if (password_verify($password, $user['password'])) {
+        // Reset failed attempts and update login timestamps
+        $updateStmt = $conn->prepare("
+            UPDATE users 
+            SET last_login = NOW(), session_start = NOW(), last_activity = NOW(),
+                failed_attempts = 0, lockout_until = NULL
+            WHERE user_id = ?
+        ");
+        $updateStmt->bind_param("i", $user['user_id']);
+        $updateStmt->execute();
+        $updateStmt->close();
+
+        // Log successful login
+        logAudit($user['user_id'], 'LOGIN', 'users', $user['user_id'], null, 'Successful login');
+
+        return $user;
+    }
+
+    // Wrong password — increment failed attempts
+    $maxAttempts  = 5;
+    $lockoutMins  = 15;
+    $newAttempts  = ($user['failed_attempts'] ?? 0) + 1;
+    $lockoutUntil = null;
+
+    if ($newAttempts >= $maxAttempts) {
+        $lockoutUntil = date('Y-m-d H:i:s', time() + ($lockoutMins * 60));
+        logAudit($user['user_id'], 'ACCOUNT_LOCKED', 'users', $user['user_id'], null,
+            "Account locked after {$maxAttempts} failed attempts");
+    } else {
+        logAudit($user['user_id'], 'FAILED_LOGIN', 'users', $user['user_id'], null,
+            "Failed login attempt {$newAttempts}/{$maxAttempts}");
+    }
+
+    $failStmt = $conn->prepare("
+        UPDATE users SET failed_attempts = ?, lockout_until = ? WHERE user_id = ?
+    ");
+    $failStmt->bind_param("isi", $newAttempts, $lockoutUntil, $user['user_id']);
+    $failStmt->execute();
+    $failStmt->close();
+
+    if ($lockoutUntil) {
+        return 'locked:' . $lockoutMins;
+    }
+
+    $attemptsLeft = $maxAttempts - $newAttempts;
+    return 'invalid_credentials:' . $attemptsLeft;
 }
 
 /**

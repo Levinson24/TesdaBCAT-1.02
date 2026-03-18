@@ -975,6 +975,119 @@ foreach ($menuItems as $item) {
             </div>
         </div>
         
+        <!-- ─── SESSION TIMEOUT WARNING MODAL ─── -->
+        <div class="modal fade" id="sessionTimeoutModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg" style="border-radius:1.5rem;overflow:hidden;">
+                    <div class="modal-header border-0 text-white" style="background:linear-gradient(135deg,#1a3a5c,#0f2a47);padding:1.5rem 1.75rem;">
+                        <h5 class="modal-title fw-700">
+                            <i class="fas fa-clock me-2"></i>Session Expiring Soon
+                        </h5>
+                    </div>
+                    <div class="modal-body text-center py-4 px-4">
+                        <div style="width:80px;height:80px;border-radius:50%;background:rgba(26,58,92,0.08);
+                                    display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:2rem;">
+                            ⏱️
+                        </div>
+                        <p class="text-muted mb-1">Your session will expire in:</p>
+                        <p class="fw-800 mb-3" style="font-size:2.5rem;color:#1a3a5c;letter-spacing:-0.02em;" id="sessionCountdown">5:00</p>
+                        <p class="text-muted small mb-0">Click "Stay Logged In" to continue your session, or you will be automatically logged out.</p>
+                    </div>
+                    <div class="modal-footer border-0 justify-content-center gap-3 pb-4">
+                        <button type="button" class="btn btn-primary px-4" id="keepAliveBtn" style="border-radius:0.875rem;font-weight:700;">
+                            <i class="fas fa-refresh me-2"></i>Stay Logged In
+                        </button>
+                        <a href="<?php echo str_repeat('../', substr_count($_SERVER['SCRIPT_NAME'], '/') - 2); ?>logout.php"
+                           class="btn btn-outline-secondary px-4" style="border-radius:0.875rem;">
+                            <i class="fas fa-sign-out-alt me-2"></i>Logout Now
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        (function () {
+            const SESSION_LIFETIME = <?php echo defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 3600; ?>;
+            const WARN_BEFORE_SEC  = 300; // Show warning 5 min before timeout
+            let countdownInterval  = null;
+            let warningShown       = false;
+            let sessionModal       = null;
+
+            // Determine the correct path to keep_alive.php based on current depth
+            const depth = (window.location.pathname.match(/\//g) || []).length - 2;
+            let keepAliveUrl = '';
+            for (let i = 0; i < depth; i++) keepAliveUrl += '../';
+            keepAliveUrl += 'includes/ajax/keep_alive.php';
+
+            function formatTime(sec) {
+                const m = Math.floor(sec / 60);
+                const s = sec % 60;
+                return m + ':' + String(s).padStart(2, '0');
+            }
+
+            function startSessionWatcher() {
+                const loginTime    = <?php echo time(); ?>;
+                const expiresAt    = loginTime + SESSION_LIFETIME;
+                const warnAt       = expiresAt  - WARN_BEFORE_SEC;
+
+                setInterval(function () {
+                    const now       = Math.floor(Date.now() / 1000);
+                    const remaining = expiresAt - now;
+
+                    if (remaining <= 0) {
+                        window.location.href = keepAliveUrl.replace('includes/ajax/keep_alive.php', 'logout.php');
+                        return;
+                    }
+
+                    if (now >= warnAt && !warningShown) {
+                        warningShown = true;
+                        sessionModal = new bootstrap.Modal(document.getElementById('sessionTimeoutModal'));
+                        sessionModal.show();
+                        startCountdown(remaining);
+                    }
+                }, 5000); // Check every 5 seconds
+            }
+
+            function startCountdown(seconds) {
+                let remaining = seconds;
+                const countdownEl = document.getElementById('sessionCountdown');
+
+                countdownInterval = setInterval(function () {
+                    remaining--;
+                    if (countdownEl) countdownEl.textContent = formatTime(remaining);
+
+                    if (remaining <= 0) {
+                        clearInterval(countdownInterval);
+                        window.location.href = keepAliveUrl.replace('includes/ajax/keep_alive.php', 'logout.php');
+                    }
+                }, 1000);
+            }
+
+            function keepAlive() {
+                fetch(keepAliveUrl, { method: 'GET', credentials: 'same-origin' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.status === 'ok') {
+                            clearInterval(countdownInterval);
+                            warningShown = false;
+                            if (sessionModal) sessionModal.hide();
+                            startSessionWatcher();
+                        } else {
+                            window.location.href = keepAliveUrl.replace('includes/ajax/keep_alive.php', 'index.php');
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            document.addEventListener('DOMContentLoaded', function () {
+                const keepBtn = document.getElementById('keepAliveBtn');
+                if (keepBtn) keepBtn.addEventListener('click', keepAlive);
+                startSessionWatcher();
+            });
+        })();
+        </script>
+
         <!-- Content Area -->
         <div class="content-area">
             <?php echo getFlashMessage(); ?>

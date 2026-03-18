@@ -1,0 +1,16 @@
+# Disable directory listing for security
+Options -Indexes
+
+# Block access to sensitive files and folders
+<FilesMatch "^\.|\.sql$|composer\.(json|lock)$|database\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Specifically protect the config directory
+RewriteEngine On
+RewriteRule ^config/.*$ - [F,L]
+
+# Custom Error Documents (Optional but recommended)
+# ErrorDocument 403 /403.php
+# ErrorDocument 404 /404.php

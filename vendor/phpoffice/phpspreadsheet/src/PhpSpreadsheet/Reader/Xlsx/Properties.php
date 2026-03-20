@@ -79,9 +79,7 @@ class Properties
                     $cellDataOfficeChildren = $xmlProperty->children('http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes');
 
                     $attributeType = $cellDataOfficeChildren->getName();
-                    /** @var SimpleXMLElement */
-                    $attributeValue = $cellDataOfficeChildren->{$attributeType};
-                    $attributeValue = (string) $attributeValue;
+                    $attributeValue = (string) $cellDataOfficeChildren->{$attributeType};
                     $attributeValue = DocumentProperties::convertProperty($attributeValue, $attributeType);
                     $attributeType = DocumentProperties::convertPropertyType($attributeType);
                     $this->docProps->setCustomProperty($propertyName, $attributeValue, $attributeType);
@@ -90,7 +88,6 @@ class Properties
         }
     }
 
-    /** @param null|false|scalar[] $array */
     private function getArrayItem(null|array|false $array): string
     {
         return is_array($array) ? (string) ($array[0] ?? '') : '';

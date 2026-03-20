@@ -24,9 +24,12 @@ else {
 }
 
 $roleDisplay = ucfirst($userRole);
-if ($userRole === 'registrar') $roleDisplay = 'Head Registrar';
-if ($userRole === 'registrar_staff') $roleDisplay = 'Registrar Staff';
-if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
+if ($userRole === 'registrar')
+    $roleDisplay = 'Head Registrar';
+if ($userRole === 'registrar_staff')
+    $roleDisplay = 'Registrar Staff';
+if ($userRole === 'dept_head')
+    $roleDisplay = 'Department Head';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,16 +55,20 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
     
     <style>
         :root {
-            --primary-indigo: #1a3a5c;
-            --secondary-indigo: #0f2a47;
-            --accent-indigo: #5b8db8;
-            --background-soft: #f0f4f8;
-            --card-glass: rgba(255, 255, 255, 0.97);
-            --sidebar-gradient: linear-gradient(160deg, #1a3a5c 0%, #0c1f33 100%);
+            --primary-indigo: #0038A8; /* Official TESDA Royal Blue */
+            --secondary-indigo: #002366; /* Official TESDA Deep Navy */
+            --accent-indigo: #0056b3;
+            --background-soft: #f8fafc;
+            --card-glass: rgba(255, 255, 255, 0.98);
+            --sidebar-gradient: linear-gradient(180deg, #0038A8 0%, #002366 100%);
             --sidebar-width: 260px;
-            --text-main: #1e293b;
+            --text-main: #0f172a;
             --text-muted: #64748b;
         }
+
+        /* Override Bootstrap Primary */
+        .btn-primary { background-color: var(--primary-indigo); border-color: var(--primary-indigo); }
+        .btn-primary:hover { background-color: #002e8a; border-color: #002e8a; }
         
         /* ──── SHARED LAYOUT ──── */
         html, body {
@@ -79,7 +86,26 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
             -webkit-text-size-adjust: 100%;
         }
 
+        /* ──── ELEGANT SCROLLBARS ──── */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.4);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.7);
+        }
+
         /* ──── MOBILE-ONLY ISOLATION ──── */
+
         @media (max-width: 1024px) {
             html, body {
                 overflow-x: hidden;
@@ -429,9 +455,8 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
         }
 
         .premium-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 20px 40px -15px rgba(26, 58, 92, 0.12);
-            border-color: rgba(26, 58, 92, 0.1);
+            box-shadow: 0 20px 40px -15px rgba(26, 58, 92, 0.15);
+            border-color: rgba(26, 58, 92, 0.15);
         }
 
         .glass-effect {
@@ -441,7 +466,7 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
 
 
         .gradient-navy {
-            background: linear-gradient(135deg, #1a3a5c 0%, #0c1f33 100%) !important;
+            background: linear-gradient(135deg, #0038A8 0%, #002366 100%) !important;
         }
 
         .gradient-light {
@@ -580,8 +605,7 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
         
         .btn-primary:hover {
             background: var(--secondary-indigo);
-            transform: translateY(-2px);
-            box-shadow: 0 44px 12px rgba(26, 58, 92, 0.35);
+            box-shadow: 0 4px 12px rgba(26, 58, 92, 0.35);
         }
         
         .tesda-logo {
@@ -662,40 +686,40 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
            We no longer need blanket !important overrides on individual
            utility classes. ── */
         :root {
-            --bs-primary:     #1a3a5c;
-            --bs-primary-rgb: 26, 58, 92;
+            --bs-primary:     #0038A8;
+            --bs-primary-rgb: 0, 56, 168;
             --bs-info:        #2980b9;
             --bs-info-rgb:    41, 128, 185;
-            --bs-secondary:   #2c4a6e;
-            --bs-secondary-rgb: 44, 74, 110;
+            --bs-secondary:   #002366;
+            --bs-secondary-rgb: 0, 35, 102;
             --bs-warning:     #f39c12;
             --bs-warning-rgb: 243, 156, 18;
         }
 
-        /* Text colour overrides (Bootstrap text-* still resolves via --bs-primary) */
-        .text-primary { color: #1a3a5c !important; }
-        .text-info    { color: #2980b9 !important; }
+        /* Text colour overrides */
+        .text-primary { color: #0038A8; }
+        .text-info    { color: #2980b9; }
 
         /* Borders */
-        .border-primary { border-color: #1a3a5c !important; }
+        .border-primary { border-color: #0038A8 !important; }
 
         /* Buttons */
         .btn-primary {
-            background-color: #1a3a5c !important;
-            border-color: #1a3a5c !important;
+            background-color: #0038A8 !important;
+            border-color: #0038A8 !important;
             color: #fff !important;
         }
         .btn-primary:hover, .btn-primary:focus {
-            background-color: #0f2a47 !important;
-            border-color: #0f2a47 !important;
+            background-color: #002366 !important;
+            border-color: #002366 !important;
             box-shadow: 0 4px 12px rgba(26, 58, 92, 0.35) !important;
         }
         .btn-outline-primary {
-            color: #1a3a5c !important;
-            border-color: #1a3a5c !important;
+            color: #0038A8 !important;
+            border-color: #0038A8 !important;
         }
         .btn-outline-primary:hover {
-            background-color: #1a3a5c !important;
+            background-color: #0038A8 !important;
             color: #fff !important;
         }
         .btn-info {
@@ -718,16 +742,16 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
 
         /* Table dark header */
         .table-dark, .table-dark th, .table-dark td {
-            background-color: #1a3a5c !important;
+            background-color: #0038A8 !important;
             border-color: #254f7a !important;
         }
-        thead.table-dark th { background-color: #1a3a5c !important; }
+        thead.table-dark th { background-color: #0038A8 !important; }
 
         /* Alerts */
         .alert-primary {
             background-color: #e8f0fb;
             border-color: #b8d0ef;
-            color: #1a3a5c;
+            color: #0038A8;
         }
         .alert-info {
             background-color: #e3f2fd;
@@ -744,38 +768,38 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
         /* Nav tabs & pills */
         .nav-tabs .nav-link.active,
         .nav-pills .nav-link.active {
-            background-color: #1a3a5c !important;
-            border-color: #1a3a5c !important;
+            background-color: #0038A8 !important;
+            border-color: #0038A8 !important;
             color: #fff !important;
         }
         .nav-tabs .nav-link:hover,
         .nav-pills .nav-link:hover {
-            color: #1a3a5c !important;
+            color: #0038A8 !important;
         }
 
         /* Pagination */
-        .page-link { color: #1a3a5c; }
-        .page-link:hover { color: #0f2a47; }
+        .page-link { color: #0038A8; }
+        .page-link:hover { color: #002366; }
         .page-item.active .page-link {
-            background-color: #1a3a5c;
-            border-color: #1a3a5c;
+            background-color: #0038A8;
+            border-color: #0038A8;
         }
 
         /* Progress bars */
-        .progress-bar.bg-primary { background-color: #1a3a5c !important; }
+        .progress-bar.bg-primary { background-color: #0038A8 !important; }
         .progress-bar.bg-info    { background-color: #2980b9 !important; }
-
+        
         /* DataTables */
         .dataTables_wrapper .dataTables_paginate .paginate_button.current,
         .dataTables_wrapper .dataTables_paginate .paginate_button.current:hover {
-            background: #1a3a5c !important;
-            border-color: #1a3a5c !important;
+            background: #0038A8 !important;
+            border-color: #0038A8 !important;
             color: #fff !important;
         }
         .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
             background: #e8f0fb !important;
             border-color: #b8d0ef !important;
-            color: #1a3a5c !important;
+            color: #0038A8 !important;
         }
 
         /* DataTables search box & length */
@@ -798,24 +822,19 @@ if ($userRole === 'dept_head') $roleDisplay = 'Department Head';
         .dataTables_wrapper .dataTables_length select:focus {
             border-color: #5b8db8 !important;
             box-shadow: 0 0 0 0.2rem rgba(26,58,92,0.2) !important;
-            outline: none;
-        }
-        .dataTables_length select {
-            border-radius: 0.5rem !important;
-            padding: 0.25rem 0.5rem !important;
         }
 
         /* Links */
         a:not(.btn):not(.sidebar-menu-item):not(.nav-link):not(.dropdown-item) {
-            color: #1a3a5c;
+            color: #0038A8;
         }
         a:not(.btn):not(.sidebar-menu-item):not(.nav-link):not(.dropdown-item):hover {
-            color: #0f2a47;
+            color: #002366;
         }
 
         /* Login page (index.php) */
         .login-card .btn-primary {
-            background: linear-gradient(135deg, #1a3a5c, #0f2a47) !important;
+            background: linear-gradient(135deg, #0038A8, #002366) !important;
         }
 
         /* Modal Refinements */
@@ -946,7 +965,12 @@ foreach ($menuItems as $item) {
             
             <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 20px 0;"></div>
             
-            <a href="../logout.php" class="sidebar-menu-item">
+            <a href="../verify.php" target="_blank" class="sidebar-menu-item" style="color: #fff !important; opacity: 0.8;">
+                <i class="fas fa-shield-halved"></i>
+                <span>Verify Document</span>
+            </a>
+
+            <a href="../logout.php" class="sidebar-menu-item mt-2">
                 <i class="fas fa-sign-out-alt"></i>
                 <span>Logout</span>
             </a>
@@ -969,8 +993,14 @@ foreach ($menuItems as $item) {
                     <span class="user-name"><?php echo htmlspecialchars($userName ?? ''); ?></span>
                     <span class="user-role"><?php echo $roleDisplay; ?></span>
                 </div>
-                <div class="user-avatar">
-                     <img src="../BCAT logo 2024.png" alt="User Avatar">
+                <div class="user-avatar text-center">
+                    <?php if (!empty($currentUser['profile_image'])): ?>
+                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($currentUser['profile_image']); ?>?v=<?php echo time(); ?>" alt="User Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                    <?php
+else: ?>
+                        <img src="<?php echo BASE_URL; ?>BCAT logo 2024.png" alt="User Avatar">
+                    <?php
+endif; ?>
                 </div>
             </div>
         </div>
@@ -979,7 +1009,7 @@ foreach ($menuItems as $item) {
         <div class="modal fade" id="sessionTimeoutModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 shadow-lg" style="border-radius:1.5rem;overflow:hidden;">
-                    <div class="modal-header border-0 text-white" style="background:linear-gradient(135deg,#1a3a5c,#0f2a47);padding:1.5rem 1.75rem;">
+                    <div class="modal-header border-0 text-white" style="background:linear-gradient(135deg,#0038A8,#002366);padding:1.5rem 1.75rem;">
                         <h5 class="modal-title fw-700">
                             <i class="fas fa-clock me-2"></i>Session Expiring Soon
                         </h5>
@@ -990,7 +1020,7 @@ foreach ($menuItems as $item) {
                             ⏱️
                         </div>
                         <p class="text-muted mb-1">Your session will expire in:</p>
-                        <p class="fw-800 mb-3" style="font-size:2.5rem;color:#1a3a5c;letter-spacing:-0.02em;" id="sessionCountdown">5:00</p>
+                        <p class="fw-800 mb-3" style="font-size:2.5rem;color:#0038A8;letter-spacing:-0.02em;" id="sessionCountdown">5:00</p>
                         <p class="text-muted small mb-0">Click "Stay Logged In" to continue your session, or you will be automatically logged out.</p>
                     </div>
                     <div class="modal-footer border-0 justify-content-center gap-3 pb-4">

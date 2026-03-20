@@ -55,25 +55,92 @@ $colleges = $conn->query("
     FROM colleges c
     ORDER BY c.college_name ASC
 ");
+// === Premium Styles ===
 ?>
+<style>
+    .premium-card { border-radius: 1rem; }
+    .bg-dark-navy { background-color: #0f172a !important; }
+    .colleges-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    .colleges-table tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #334155;
+        font-size: 0.85rem;
+    }
+    /* Premium Action Buttons */
+    .btn-premium-edit {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 1.2rem;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50px;
+        color: #334155 !important;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+    .btn-premium-edit:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e0;
+        color: #1e293b !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-university"></i> Colleges</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Add College
+    .btn-premium-delete {
+        width: 36px; height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50%;
+        color: #ef4444;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border: none;
+        cursor: pointer;
+    }
+    .btn-premium-delete:hover {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+        color: #dc2626;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+    }
+</style>
+
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-university me-2 text-info"></i> Higher Education Colleges
+        </h5>
+        <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addModal">
+            <i class="fas fa-plus me-1"></i> Add College
         </button>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-mobile-card data-table">
+            <table class="table table-hover align-middle mb-0 colleges-table data-table">
                 <thead>
                     <tr>
-                        <th class="ps-4">Code</th>
-                        <th>College Name</th>
-                        <th>Diploma Programs</th>
-                        <th>Status</th>
-                        <th class="text-end pe-4">Actions</th>
+                        <th class="ps-4">INSTITUTION CODE</th>
+                        <th>COLLEGE NAME</th>
+                        <th class="text-center">PROGRAMS</th>
+                        <th class="text-center">STATUS</th>
+                        <th class="text-end pe-4">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -89,14 +156,14 @@ $colleges = $conn->query("
                         </td>
                         <td class="text-end pe-4" data-label="Control Actions">
                             <div class="d-flex justify-content-end gap-1">
-                                <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick='editCollege(<?php echo json_encode($c); ?>)'>
-                                    <i class="fas fa-edit me-1"></i> Edit
+                                <button class="btn-premium-edit" onclick='editCollege(<?php echo json_encode($c); ?>)'>
+                                    <i class="fas fa-edit"></i> Edit
                                 </button>
                                 <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this college?')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="college_id" value="<?php echo $c['college_id']; ?>">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">
+                                    <button type="submit" class="btn-premium-delete">
                                         <i class="fas fa-trash"></i>
                                     </button>
                                 </form>

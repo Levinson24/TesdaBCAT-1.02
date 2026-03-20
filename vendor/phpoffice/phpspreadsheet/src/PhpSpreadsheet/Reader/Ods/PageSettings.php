@@ -5,7 +5,6 @@ namespace PhpOffice\PhpSpreadsheet\Reader\Ods;
 use DOMDocument;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-use stdClass;
 
 class PageSettings
 {
@@ -22,7 +21,6 @@ class PageSettings
      */
     private array $tableStylesCrossReference = [];
 
-    /** @var mixed[] */
     private array $pageLayoutStyles = [];
 
     /**
@@ -153,15 +151,12 @@ class PageSettings
         if (!array_key_exists($printSettingsIndex, $this->pageLayoutStyles)) {
             return;
         }
-        /** @var (object{orientation: string, scale: int|string, printOrder: ?string,
-         * horizontalCentered: bool, verticalCentered: bool, marginLeft: float, marginRight: float, marginTop: float,
-         * marginBottom: float, marginHeader: float, marginFooter: float}&stdClass) */
         $printSettings = $this->pageLayoutStyles[$printSettingsIndex];
 
         $worksheet->getPageSetup()
             ->setOrientation($printSettings->orientation ?? PageSetup::ORIENTATION_DEFAULT)
             ->setPageOrder($printSettings->printOrder === 'ltr' ? PageSetup::PAGEORDER_OVER_THEN_DOWN : PageSetup::PAGEORDER_DOWN_THEN_OVER)
-            ->setScale((int) trim((string) $printSettings->scale, '%'))
+            ->setScale((int) trim($printSettings->scale, '%'))
             ->setHorizontalCentered($printSettings->horizontalCentered)
             ->setVerticalCentered($printSettings->verticalCentered);
 

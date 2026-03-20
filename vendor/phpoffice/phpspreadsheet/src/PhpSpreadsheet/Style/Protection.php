@@ -55,10 +55,6 @@ class Protection extends Supervisor
 
     /**
      * Build style array from subcomponents.
-     *
-     * @param mixed[] $array
-     *
-     * @return array{protection: mixed[]}
      */
     public function getStyleArray(array $array): array
     {
@@ -77,7 +73,7 @@ class Protection extends Supervisor
      * );
      * </code>
      *
-     * @param array{locked?: string, hidden?: string} $styleArray Array containing style information
+     * @param array $styleArray Array containing style information
      *
      * @return $this
      */
@@ -177,7 +173,6 @@ class Protection extends Supervisor
         );
     }
 
-    /** @return mixed[] */
     protected function exportArray1(): array
     {
         $exportedArray = [];

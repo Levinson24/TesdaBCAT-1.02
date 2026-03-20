@@ -22,9 +22,17 @@ define('APP_VERSION', '1.0.2');
 if (!defined('BASE_URL')) {
     $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    // Remove potential extra path segment if running in a subdirectory
-    $script_path = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME']));
-    $base_path = ($script_path === '/') ? '/' : $script_path . '/';
+    
+    // Calculate base path based on the location of this file (config/database.php)
+    $project_root = str_replace('\\', '/', dirname(__DIR__));
+    $doc_root = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT']);
+    
+    // The part of project_root that follows doc_root is our subfolder path
+    $sub_folder = str_replace($doc_root, '', $project_root);
+    $base_path = '/' . trim($sub_folder, '/') . '/';
+    // If running from root, trim could make it empty, so ensure at least a slash
+    if ($base_path === '//') $base_path = '/';
+    
     define('BASE_URL', $protocol . "://" . $host . $base_path);
 }
 

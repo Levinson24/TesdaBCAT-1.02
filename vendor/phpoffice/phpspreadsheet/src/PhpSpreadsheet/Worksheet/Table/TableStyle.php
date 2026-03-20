@@ -2,7 +2,6 @@
 
 namespace PhpOffice\PhpSpreadsheet\Worksheet\Table;
 
-use PhpOffice\PhpSpreadsheet\Style\Style;
 use PhpOffice\PhpSpreadsheet\Worksheet\Table;
 
 class TableStyle
@@ -93,11 +92,6 @@ class TableStyle
      * Show Column Stripes.
      */
     private bool $showColumnStripes = false;
-
-    /**
-     * TableDxfsStyle.
-     */
-    private ?TableDxfsStyle $tableStyle = null;
 
     /**
      * Table.
@@ -200,36 +194,6 @@ class TableStyle
     public function setShowColumnStripes(bool $showColumnStripes): self
     {
         $this->showColumnStripes = $showColumnStripes;
-
-        return $this;
-    }
-
-    /**
-     * Get this Style's Dxfs TableStyle.
-     */
-    public function getTableDxfsStyle(): ?TableDxfsStyle
-    {
-        return $this->tableStyle;
-    }
-
-    /**
-     * Set this Style's Dxfs TableStyle.
-     *
-     * @param Style[] $dxfs
-     */
-    public function setTableDxfsStyle(TableDxfsStyle $tableStyle, array $dxfs): self
-    {
-        $this->tableStyle = $tableStyle;
-
-        if ($this->tableStyle->getHeaderRow() !== null && isset($dxfs[$this->tableStyle->getHeaderRow()])) {
-            $this->tableStyle->setHeaderRowStyle($dxfs[$this->tableStyle->getHeaderRow()]);
-        }
-        if ($this->tableStyle->getFirstRowStripe() !== null && isset($dxfs[$this->tableStyle->getFirstRowStripe()])) {
-            $this->tableStyle->setFirstRowStripeStyle($dxfs[$this->tableStyle->getFirstRowStripe()]);
-        }
-        if ($this->tableStyle->getSecondRowStripe() !== null && isset($dxfs[$this->tableStyle->getSecondRowStripe()])) {
-            $this->tableStyle->setSecondRowStripeStyle($dxfs[$this->tableStyle->getSecondRowStripe()]);
-        }
 
         return $this;
     }

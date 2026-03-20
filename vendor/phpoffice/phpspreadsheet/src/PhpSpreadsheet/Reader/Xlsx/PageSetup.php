@@ -18,11 +18,6 @@ class PageSetup extends BaseParserClass
         $this->worksheetXml = $worksheetXml;
     }
 
-    /**
-     * @param mixed[] $unparsedLoadedData
-     *
-     * @return mixed[]
-     */
     public function load(array $unparsedLoadedData): array
     {
         $worksheetXml = $this->worksheetXml;
@@ -51,11 +46,6 @@ class PageSetup extends BaseParserClass
         }
     }
 
-    /**
-     * @param mixed[] $unparsedLoadedData
-     *
-     * @return mixed[]
-     */
     private function pageSetup(SimpleXMLElement $xmlSheet, Worksheet $worksheet, array $unparsedLoadedData): array
     {
         if ($xmlSheet->pageSetup) {
@@ -92,7 +82,6 @@ class PageSetup extends BaseParserClass
                 if (!str_ends_with($relid, 'ps')) {
                     $relid .= 'ps';
                 }
-                /** @var mixed[][][] $unparsedLoadedData */
                 $unparsedLoadedData['sheets'][$worksheet->getCodeName()]['pageSetupRelId'] = $relid;
             }
         }
@@ -160,7 +149,7 @@ class PageSetup extends BaseParserClass
     private function rowBreaks(SimpleXMLElement $xmlSheet, Worksheet $worksheet): void
     {
         foreach ($xmlSheet->rowBreaks->brk as $brk) {
-            $rowBreakMax = /*isset($brk['max']) ? ((int) $brk['max']) :*/ -1;
+            $rowBreakMax = isset($brk['max']) ? ((int) $brk['max']) : -1;
             if ($brk['man']) {
                 $worksheet->setBreak("A{$brk['id']}", Worksheet::BREAK_ROW, $rowBreakMax);
             }

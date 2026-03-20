@@ -27,7 +27,6 @@ class RowRange implements AddressRange, Stringable
         $this->worksheet = null;
     }
 
-    /** @param array{int, int} $array */
     public static function fromArray(array $array, ?Worksheet $worksheet = null): self
     {
         [$from, $to] = $array;

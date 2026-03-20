@@ -53,8 +53,6 @@ class DataSeriesValues extends Properties
 
     /**
      * Data Values.
-     *
-     * @var null|mixed[]
      */
     private ?array $dataValues;
 
@@ -77,7 +75,6 @@ class DataSeriesValues extends Properties
     /**
      * Create a new DataSeriesValues object.
      *
-     * @param null|mixed[] $dataValues
      * @param null|ChartColor|ChartColor[]|string|string[] $fillColor
      */
     public function __construct(
@@ -333,12 +330,16 @@ class DataSeriesValues extends Properties
      * Method for validating hex color.
      *
      * @param string $color value for color
+     *
+     * @return bool true if validation was successful
      */
-    private function validateColor(string $color): void
+    private function validateColor(string $color): bool
     {
         if (!preg_match('/^[a-f0-9]{6}$/i', $color)) {
             throw new Exception(sprintf('Invalid hex color for chart series (color: "%s")', $color));
         }
+
+        return true;
     }
 
     /**
@@ -346,10 +347,7 @@ class DataSeriesValues extends Properties
      */
     public function getLineWidth(): null|float|int
     {
-        /** @var null|float|int */
-        $temp = $this->lineStyleProperties['width'];
-
-        return $temp;
+        return $this->lineStyleProperties['width'];
     }
 
     /**
@@ -383,7 +381,6 @@ class DataSeriesValues extends Properties
     {
         $levelCount = 0;
         foreach (($this->dataValues ?? []) as $dataValueSet) {
-            /** @var mixed[] $dataValueSet */
             $levelCount = max($levelCount, count($dataValueSet));
         }
 
@@ -392,8 +389,6 @@ class DataSeriesValues extends Properties
 
     /**
      * Get Series Data Values.
-     *
-     * @return null|mixed[]
      */
     public function getDataValues(): ?array
     {
@@ -420,8 +415,6 @@ class DataSeriesValues extends Properties
 
     /**
      * Set Series Data Values.
-     *
-     * @param mixed[] $dataValues
      *
      * @return $this
      */
@@ -453,14 +446,13 @@ class DataSeriesValues extends Properties
                 }
                 unset($dataValue);
             } else {
-                [, $cellRange] = Worksheet::extractSheetTitle($this->dataSource, true);
+                [$worksheet, $cellRange] = Worksheet::extractSheetTitle($this->dataSource, true);
                 $dimensions = Coordinate::rangeDimension(str_replace('$', '', $cellRange ?? ''));
                 if (($dimensions[0] == 1) || ($dimensions[1] == 1)) {
                     $this->dataValues = Functions::flattenArray($newDataValues);
                 } else {
-                    /** @var array<int, mixed[]> */
+                    /** @var array<int, array> */
                     $newDataValuesx = $newDataValues;
-                    /** @var mixed[][] $newArray */
                     $newArray = array_values(array_shift($newDataValuesx) ?? []);
                     foreach ($newArray as $i => $newDataSet) {
                         $newArray[$i] = [$newDataSet];
@@ -475,7 +467,7 @@ class DataSeriesValues extends Properties
                     $this->dataValues = $newArray;
                 }
             }
-            $this->pointCount = count($this->dataValues ?? []);
+            $this->pointCount = count($this->dataValues);
         }
     }
 
@@ -540,7 +532,6 @@ class DataSeriesValues extends Properties
         return $this;
     }
 
-    /** @param TrendLine[] $trendLines */
     public function setTrendLines(array $trendLines): self
     {
         $this->trendLines = $trendLines;
@@ -548,7 +539,6 @@ class DataSeriesValues extends Properties
         return $this;
     }
 
-    /** @return TrendLine[] */
     public function getTrendLines(): array
     {
         return $this->trendLines;

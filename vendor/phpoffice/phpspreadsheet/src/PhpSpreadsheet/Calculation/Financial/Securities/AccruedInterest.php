@@ -6,7 +6,6 @@ use PhpOffice\PhpSpreadsheet\Calculation\DateTimeExcel\YearFrac;
 use PhpOffice\PhpSpreadsheet\Calculation\Exception;
 use PhpOffice\PhpSpreadsheet\Calculation\Financial\Constants as FinancialConstants;
 use PhpOffice\PhpSpreadsheet\Calculation\Functions;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 
 class AccruedInterest
 {
@@ -60,8 +59,12 @@ class AccruedInterest
         $settlement = Functions::flattenSingleValue($settlement);
         $rate = Functions::flattenSingleValue($rate);
         $parValue = ($parValue === null) ? 1000 : Functions::flattenSingleValue($parValue);
-        $frequency = Functions::flattenSingleValue($frequency) ?? FinancialConstants::FREQUENCY_ANNUAL;
-        $basis = Functions::flattenSingleValue($basis) ?? FinancialConstants::BASIS_DAYS_PER_YEAR_NASD;
+        $frequency = ($frequency === null)
+            ? FinancialConstants::FREQUENCY_ANNUAL
+            : Functions::flattenSingleValue($frequency);
+        $basis = ($basis === null)
+            ? FinancialConstants::BASIS_DAYS_PER_YEAR_NASD
+            : Functions::flattenSingleValue($basis);
 
         try {
             $issue = SecurityValidations::validateIssueDate($issue);
@@ -78,12 +81,12 @@ class AccruedInterest
         $daysBetweenIssueAndSettlement = Functions::scalar(YearFrac::fraction($issue, $settlement, $basis));
         if (!is_numeric($daysBetweenIssueAndSettlement)) {
             //    return date error
-            return StringHelper::convertToString($daysBetweenIssueAndSettlement);
+            return $daysBetweenIssueAndSettlement;
         }
         $daysBetweenFirstInterestAndSettlement = Functions::scalar(YearFrac::fraction($firstInterest, $settlement, $basis));
         if (!is_numeric($daysBetweenFirstInterestAndSettlement)) {
             //    return date error
-            return StringHelper::convertToString($daysBetweenFirstInterestAndSettlement);
+            return $daysBetweenFirstInterestAndSettlement;
         }
 
         return $parValue * $rate * $daysBetweenIssueAndSettlement;
@@ -122,7 +125,9 @@ class AccruedInterest
         $settlement = Functions::flattenSingleValue($settlement);
         $rate = Functions::flattenSingleValue($rate);
         $parValue = ($parValue === null) ? 1000 : Functions::flattenSingleValue($parValue);
-        $basis = Functions::flattenSingleValue($basis) ?? FinancialConstants::BASIS_DAYS_PER_YEAR_NASD;
+        $basis = ($basis === null)
+            ? FinancialConstants::BASIS_DAYS_PER_YEAR_NASD
+            : Functions::flattenSingleValue($basis);
 
         try {
             $issue = SecurityValidations::validateIssueDate($issue);
@@ -138,7 +143,7 @@ class AccruedInterest
         $daysBetweenIssueAndSettlement = Functions::scalar(YearFrac::fraction($issue, $settlement, $basis));
         if (!is_numeric($daysBetweenIssueAndSettlement)) {
             //    return date error
-            return StringHelper::convertToString($daysBetweenIssueAndSettlement);
+            return $daysBetweenIssueAndSettlement;
         }
 
         return $parValue * $rate * $daysBetweenIssueAndSettlement;

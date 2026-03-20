@@ -30,12 +30,34 @@ $students = $conn->query("
 ");
 ?>
 
+<style>
+    .btn-premium-print {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        background-color: #f0f9ff;
+        color: #0369a1 !important;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: none !important;
+    }
+    .btn-premium-print:hover {
+        background-color: #0369a1;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(3, 105, 161, 0.2);
+    }
+</style>
+
 <div class="row">
     <div class="col-12 mb-4">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-primary text-white pt-4 pb-3">
-                <h5 class="mb-0 fw-bold"><i class="fas fa-file-pdf me-2"></i> Official Transcripts</h5>
-                <p class="mb-0 small opacity-75 mt-1">Generate official printable PDF transcripts for enrolled students.</p>
+        <div class="card premium-card mb-4 shadow-sm border-0">
+            <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+                <h5 class="mb-0 text-white fw-bold ms-2"><i class="fas fa-file-pdf me-2 text-warning"></i> Official Transcripts</h5>
+                <p class="mb-0 small text-white opacity-75 mt-1 ms-4 d-none d-md-block">Generate official printable PDF transcripts for enrolled students.</p>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -61,8 +83,8 @@ $students = $conn->query("
                                 </td>
                                 <td class="text-center"><span class="badge bg-secondary"><?php echo $s['total_grades']; ?> subjects</span></td>
                                 <td class="text-end pe-4">
-                                    <a href="transcript_print.php?student_id=<?php echo $s['student_id']; ?>" target="_blank" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-print me-1"></i> Print PDF
+                                    <a href="transcript_print.php?student_id=<?php echo $s['student_id']; ?>" target="_blank" class="btn-premium-print" title="Print Transcript">
+                                        <i class="fas fa-print"></i>
                                     </a>
                                 </td>
                             </tr>

@@ -3,8 +3,6 @@
 namespace PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 
 use PhpOffice\PhpSpreadsheet\Shared\Date;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
-use Throwable;
 
 class DateFormatter
 {
@@ -100,7 +98,6 @@ class DateFormatter
         '[ss]' => self::SECONDS_IN_DAY,
     ];
 
-    /** @param float|int|numeric-string $value */
     private static function tryInterval(bool &$seekingBracket, string &$block, mixed $value, string $format): void
     {
         if ($seekingBracket) {
@@ -163,11 +160,7 @@ class DateFormatter
         $callback = [self::class, 'escapeQuotesCallback'];
         $format = (string) preg_replace_callback('/"(.*)"/U', $callback, $format);
 
-        try {
-            $dateObj = Date::excelToDateTimeObject($value);
-        } catch (Throwable) {
-            return StringHelper::convertToString($value);
-        }
+        $dateObj = Date::excelToDateTimeObject($value);
         // If the colon preceding minute had been quoted, as happens in
         // Excel 2003 XML formats, m will not have been changed to i above.
         // Change it now.
@@ -207,15 +200,13 @@ class DateFormatter
         return $dateObj->format($format);
     }
 
-    /** @param string[] $matches */
     private static function setLowercaseCallback(array $matches): string
     {
         return mb_strtolower($matches[0]);
     }
 
-    /** @param string[] $matches */
     private static function escapeQuotesCallback(array $matches): string
     {
-        return '\\' . implode('\\', mb_str_split($matches[1], 1, 'UTF-8'));
+        return '\\' . implode('\\', str_split($matches[1]));
     }
 }

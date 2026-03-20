@@ -64,180 +64,183 @@ $programs = $conn->query("
 ?>
 
 <style>
+    .premium-card {
+        border-radius: 1rem;
+        transition: transform 0.2s;
+    }
+    .bg-dark-navy {
+        background-color: #002366 !important;
+    }
     .programs-table thead th {
         background-color: #f8fafc;
-        color: #475569;
+        color: #64748b;
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.05em;
-        padding: 1.25rem 1rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
         border-top: none;
     }
-    .programs-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 0.9rem;
-    }
-    .program-icon {
-        width: 42px;
-        height: 42px;
-        background: #eff6ff;
-        color: #1d4ed8;
+    .program-icon-box {
+        width: 42px; height: 42px;
+        background: #f1f5f9;
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 800;
-        margin-right: 14px;
-        flex-shrink: 0;
-        border: 1px solid #dbeafe;
+        color: #0038A8;
+        margin-right: 1rem;
+        border: 1px solid #e2e8f0;
+        font-size: 1.1rem;
     }
-    .stat-badge {
+    .stat-pill {
+        padding: 0.35rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
         font-weight: 700;
-        padding: 0.4rem 0.75rem;
-        border-radius: 0.6rem;
-        font-size: 0.8rem;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 0.5rem;
     }
-    .stat-subjects { background: #f0f9ff; color: #0369a1; border: 1px solid #e0f2fe; }
-    .stat-students { background: #fdf2f8; color: #9d174d; border: 1px solid #fce7f3; }
+    .stat-blue { background: #eff6ff; color: #1e40af; }
+    .stat-rose { background: #fff1f2; color: #9f1239; }
     
-    .status-indicator {
+    .status-pill {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-pill-active { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .status-pill-inactive { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+    .btn-premium-edit {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 1.2rem;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50px;
+        color: #334155 !important;
         font-weight: 600;
         font-size: 0.85rem;
-        padding: 0.35rem 0.75rem;
-        border-radius: 2rem;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        text-decoration: none !important;
+        cursor: pointer;
     }
-    .status-active {
-        background-color: #f0fdf4;
-        color: #166534;
-        border: 1px solid #bbf7d0;
+    .btn-premium-edit:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e0;
+        color: #1e293b !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
     }
-    .status-inactive {
-        background-color: #f8fafc;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-    }
-    .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-    }
-    .dot-active { background-color: #22c55e; }
-    .dot-inactive { background-color: #94a3b8; }
-    
-    .btn-action {
-        width: 34px;
-        height: 34px;
-        display: flex;
+    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
+
+    .btn-premium-delete {
+        width: 36px; height: 36px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 10px;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50%;
+        color: #ef4444 !important;
         transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border: none;
+        cursor: pointer;
     }
-    .btn-edit-lite {
-        background: #eff6ff;
-        color: #2563eb;
-        border: 1px solid #dbeafe;
-    }
-    .btn-edit-lite:hover {
-        background: #2563eb;
-        color: white;
-    }
-    .btn-delete-lite {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fee2e2;
-    }
-    .btn-delete-lite:hover {
-        background: #dc2626;
-        color: white;
+    .btn-premium-delete:hover {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+        color: #dc2626 !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
     }
 </style>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-graduation-cap"></i> Programs (Courses)</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Add Program
+<div class="card premium-card shadow-sm border-0">
+    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-graduation-cap me-2 text-info"></i> Programs (Courses)
+        </h5>
+        <button class="btn btn-light btn-sm rounded px-3 shadow-sm fw-bold border-0" data-bs-toggle="modal" data-bs-target="#addModal">
+            <i class="fas fa-plus me-1 text-primary"></i> Add Program
         </button>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-mobile-card programs-table data-table">
+            <table class="table table-hover align-middle mb-0 programs-table data-table">
                 <thead>
                     <tr>
-                        <th class="ps-4">Program Identity</th>
-                        <th>Diploma Program</th>
-                        <th class="text-center">Subjects</th>
-                        <th class="text-center">Students</th>
-                        <th>Status</th>
-                        <th class="text-end pe-4">Manage</th>
+                        <th class="ps-4">PROGRAM IDENTITY</th>
+                        <th>DIPLOMA PROGRAM</th>
+                        <th class="text-center">SUBJECTS</th>
+                        <th class="text-center">STUDENTS</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-4">MANAGE</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($p = $programs->fetch_assoc()): ?>
                     <tr>
-                        <td class="ps-4" data-label="Program Identity">
+                        <td class="ps-4">
                             <div class="d-flex align-items-center">
-                                <div class="program-icon">
+                                <div class="program-icon-box">
                                     <?php echo substr($p['program_code'], 0, 1); ?>
                                 </div>
                                 <div>
-                                    <div class="fw-bold text-dark fs-6"><?php echo htmlspecialchars($p['program_name']); ?></div>
-                                    <span class="badge bg-primary bg-opacity-10 text-primary border-primary border-opacity-25 mt-1" style="font-size: 0.7rem; letter-spacing: 0.05em;">
+                                    <div class="fw-bold text-dark fs-6 lh-1"><?php echo htmlspecialchars($p['program_name']); ?></div>
+                                    <div class="badge bg-light text-muted border mt-1" style="font-size: 0.65rem; font-weight: 700;">
                                         <?php echo htmlspecialchars($p['program_code']); ?>
-                                    </span>
+                                    </div>
                                 </div>
                             </div>
                         </td>
-                        <td data-label="Diploma Program">
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-building me-2 text-muted" style="font-size: 0.8rem;"></i>
-                                <span class="text-muted small fw-medium"><?php echo htmlspecialchars($p['dept_name']); ?></span>
+                        <td>
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-building me-2 small"></i>
+                                <span class="small fw-semibold"><?php echo htmlspecialchars($p['dept_name']); ?></span>
                             </div>
                         </td>
-                        <td class="text-center" data-label="Subjects">
-                            <span class="stat-badge stat-subjects">
+                        <td class="text-center">
+                            <span class="stat-pill stat-blue">
                                 <i class="fas fa-book-open"></i> <?php echo $p['subject_count']; ?>
                             </span>
                         </td>
-                        <td class="text-center" data-label="Students">
-                            <span class="stat-badge stat-students">
+                        <td class="text-center">
+                            <span class="stat-pill stat-rose">
                                 <i class="fas fa-users"></i> <?php echo $p['student_count']; ?>
                             </span>
                         </td>
-                        <td data-label="Status">
+                        <td>
                             <?php if (($p['status'] ?? 'active') === 'active'): ?>
-                                <div class="status-indicator status-active">
-                                    <div class="dot dot-active"></div> Active
+                                <div class="status-pill status-pill-active">
+                                    <div class="status-dot" style="background: #22c55e;"></div> Active
                                 </div>
                             <?php else: ?>
-                                <div class="status-indicator status-inactive">
-                                    <div class="dot dot-inactive"></div> Inactive
+                                <div class="status-pill status-pill-inactive">
+                                    <div class="status-dot" style="background: #94a3b8;"></div> Inactive
                                 </div>
                             <?php endif; ?>
                         </td>
-                        <td class="text-end pe-4" data-label="Manage">
+                        <td class="text-end pe-4">
                             <div class="d-flex justify-content-end gap-2">
-                                <button class="btn-action btn-edit-lite" onclick='editProgram(<?php echo json_encode($p); ?>)' title="Edit Program">
-                                    <i class="fas fa-edit"></i>
+                                <button class="btn-premium-edit" onclick='editProgram(<?php echo json_encode($p); ?>)'>
+                                    <i class="fas fa-edit"></i> Edit
                                 </button>
-                                <button class="btn-action btn-delete-lite" onclick="deleteProgram(<?php echo $p['program_id']; ?>, '<?php echo addslashes($p['program_name']); ?>')" title="Delete Program">
+                                <button class="btn-premium-delete" onclick="deleteProgram(<?php echo $p['program_id']; ?>, '<?php echo addslashes($p['program_name']); ?>')">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </div>
                         </td>
                     </tr>
-                    <?php
-endwhile; ?>
+                    <?php endwhile; ?>
                 </tbody>
             </table>
         </div>

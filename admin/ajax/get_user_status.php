@@ -15,8 +15,27 @@ if (!isLoggedIn() || getCurrentUserRole() !== 'admin') {
 }
 
 $conn = getDBConnection();
-$sql = "SELECT user_id, status, last_login, last_activity, session_start FROM users";
+$sql = "SELECT user_id, status, last_login, last_activity, session_start, last_ip FROM users";
 $result = $conn->query($sql);
+
+// Fetch last document actions for all users
+$docActions = [];
+$docSql = "
+    SELECT al.user_id, al.action, al.created_at 
+    FROM audit_logs al
+    INNER JOIN (
+        SELECT user_id, MAX(log_id) as max_id 
+        FROM audit_logs 
+        WHERE action LIKE 'PRINT_%' OR action LIKE 'DOWNLOAD_%' OR action = 'VIEW_COR'
+        GROUP BY user_id
+    ) latest ON al.log_id = latest.max_id";
+$docResult = $conn->query($docSql);
+while ($doc = $docResult->fetch_assoc()) {
+    $docActions[$doc['user_id']] = [
+        'action' => str_replace('_', ' ', $doc['action']),
+        'time' => $doc['created_at']
+    ];
+}
 
 $userData = [];
 $currentTime = time();
@@ -47,11 +66,22 @@ while ($user = $result->fetch_assoc()) {
 
     $lastLoginFormatted = !empty($user['last_login']) ? date('M d, Y h:i A', strtotime($user['last_login'])) : 'Never logged in';
 
+    $lastDoc = 'No document activity';
+    if (isset($docActions[$user['user_id']])) {
+        $timeDiff = $currentTime - strtotime($docActions[$user['user_id']]['time']);
+        if ($timeDiff < 60) $lastDoc = $docActions[$user['user_id']]['action'] . ' just now';
+        elseif ($timeDiff < 3600) $lastDoc = $docActions[$user['user_id']]['action'] . ' ' . floor($timeDiff/60) . 'm ago';
+        elseif ($timeDiff < 86400) $lastDoc = $docActions[$user['user_id']]['action'] . ' ' . floor($timeDiff/3600) . 'h ago';
+        else $lastDoc = $docActions[$user['user_id']]['action'] . ' on ' . date('M d', strtotime($docActions[$user['user_id']]['time']));
+    }
+
     $userData[$user['user_id']] = [
         'status' => $status,
         'isOnline' => $isOnline,
         'sessionDuration' => $sessionDuration,
-        'lastLogin' => $lastLoginFormatted
+        'lastLogin' => $lastLoginFormatted,
+        'lastIP' => $user['last_ip'] ?? 'N/A',
+        'lastDoc' => $lastDoc
     ];
 }
 

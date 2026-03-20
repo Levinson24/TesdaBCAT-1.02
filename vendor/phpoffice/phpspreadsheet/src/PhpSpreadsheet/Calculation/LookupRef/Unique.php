@@ -33,31 +33,17 @@ class Unique
             : self::uniqueByRow($lookupVector, $exactlyOnce);
     }
 
-    /** @param mixed[] $lookupVector */
     private static function uniqueByRow(array $lookupVector, bool $exactlyOnce): mixed
     {
         // When not $byColumn, we count whole rows or values, not individual values
         //      so implode each row into a single string value
         array_walk(
             $lookupVector,
-            //* @phpstan-ignore-next-line
             function (array &$value): void {
-                $valuex = '';
-                $separator = '';
-                $numericIndicator = "\x01";
-                foreach ($value as $cellValue) {
-                    /** @var scalar $cellValue */
-                    $valuex .= $separator . $cellValue;
-                    $separator = "\x00";
-                    if (is_int($cellValue) || is_float($cellValue)) {
-                        $valuex .= $numericIndicator;
-                    }
-                }
-                $value = $valuex;
+                $value = implode(chr(0x00), $value);
             }
         );
 
-        /** @var string[] $lookupVector */
         $result = self::countValuesCaseInsensitive($lookupVector);
 
         if ($exactlyOnce === true) {
@@ -74,24 +60,15 @@ class Unique
         array_walk(
             $result,
             function (string &$value): void {
-                $value = explode("\x00", $value);
-                foreach ($value as &$stringValue) {
-                    if (str_ends_with($stringValue, "\x01")) {
-                        // x01 should only end a string which is otherwise a float or int,
-                        // so phpstan is technically correct but what it fears should not happen.
-                        $stringValue = 0 + substr($stringValue, 0, -1); //@phpstan-ignore-line
-                    }
-                }
+                $value = explode(chr(0x00), $value);
             }
         );
 
         return (count($result) === 1) ? array_pop($result) : $result;
     }
 
-    /** @param mixed[] $lookupVector */
     private static function uniqueByColumn(array $lookupVector, bool $exactlyOnce): mixed
     {
-        /** @var string[] */
         $flattenedLookupVector = Functions::flattenArray($lookupVector);
 
         if (count($lookupVector, COUNT_RECURSIVE) > count($flattenedLookupVector, COUNT_RECURSIVE) + 1) {
@@ -117,11 +94,6 @@ class Unique
         return $result;
     }
 
-    /**
-     * @param string[] $caseSensitiveLookupValues
-     *
-     * @return mixed[]
-     */
     private static function countValuesCaseInsensitive(array $caseSensitiveLookupValues): array
     {
         $caseInsensitiveCounts = array_count_values(
@@ -149,11 +121,6 @@ class Unique
         return $caseSensitiveCounts;
     }
 
-    /**
-     * @param mixed[] $values
-     *
-     * @return mixed[]
-     */
     private static function exactlyOnceFilter(array $values): array
     {
         return array_filter(

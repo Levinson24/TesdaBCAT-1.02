@@ -2,7 +2,6 @@
 
 namespace PhpOffice\PhpSpreadsheet\Shared\OLE;
 
-use PhpOffice\PhpSpreadsheet\Exception;
 use PhpOffice\PhpSpreadsheet\Shared\OLE;
 
 class ChainedBlockStream
@@ -17,8 +16,6 @@ class ChainedBlockStream
 
     /**
      * Parameters specified by fopen().
-     *
-     * @var mixed[]
      */
     public array $params = [];
 
@@ -58,25 +55,21 @@ class ChainedBlockStream
 
         // 25 is length of "ole-chainedblockstream://"
         parse_str(substr($path, 25), $this->params);
-        if (!isset($this->params['oleInstanceId'], $this->params['blockId'], $GLOBALS['_OLE_INSTANCES'][$this->params['oleInstanceId']])) { //* @phpstan-ignore-line
+        if (!isset($this->params['oleInstanceId'], $this->params['blockId'], $GLOBALS['_OLE_INSTANCES'][$this->params['oleInstanceId']])) {
             if ($options & STREAM_REPORT_ERRORS) {
                 trigger_error('OLE stream not found', E_USER_WARNING);
             }
 
             return false;
         }
-        $this->ole = $GLOBALS['_OLE_INSTANCES'][$this->params['oleInstanceId']]; //* @phpstan-ignore-line
-        if (!($this->ole instanceof OLE)) { //* @phpstan-ignore-line
-            throw new Exception('class is not OLE');
-        }
+        $this->ole = $GLOBALS['_OLE_INSTANCES'][$this->params['oleInstanceId']];
 
         $blockId = $this->params['blockId'];
         $this->data = '';
         if (isset($this->params['size']) && $this->params['size'] < $this->ole->bigBlockThreshold && $blockId != $this->ole->root->startBlock) {
             // Block id refers to small blocks
-            $rootPos = $this->ole->getBlockOffset((int) $this->ole->root->startBlock);
+            $rootPos = $this->ole->getBlockOffset($this->ole->root->startBlock);
             while ($blockId != -2) {
-                /** @var int $blockId */
                 $pos = $rootPos + $blockId * $this->ole->bigBlockSize;
                 $blockId = $this->ole->sbat[$blockId];
                 fseek($this->ole->_file_handle, $pos);
@@ -85,7 +78,6 @@ class ChainedBlockStream
         } else {
             // Block id refers to big blocks
             while ($blockId != -2) {
-                /** @var int $blockId */
                 $pos = $this->ole->getBlockOffset($blockId);
                 fseek($this->ole->_file_handle, $pos);
                 $this->data .= fread($this->ole->_file_handle, $this->ole->bigBlockSize);
@@ -93,7 +85,7 @@ class ChainedBlockStream
             }
         }
         if (isset($this->params['size'])) {
-            $this->data = substr($this->data, 0, $this->params['size']); //* @phpstan-ignore-line
+            $this->data = substr($this->data, 0, $this->params['size']);
         }
 
         if ($options & STREAM_USE_PATH) {
@@ -173,8 +165,6 @@ class ChainedBlockStream
     /**
      * Implements support for fstat(). Currently the only supported field is
      * "size".
-     *
-     * @return array{size: int}
      */
     public function stream_stat(): array // @codingStandardsIgnoreLine
     {

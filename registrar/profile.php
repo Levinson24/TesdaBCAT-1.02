@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         $stmt->close();
 }
 
-$user = getUserProfile($userId, $userRole);
+$user = getUserProfile($userId, getCurrentUserRole());
 $pageTitle = 'My Profile';
 require_once '../includes/header.php';
 ?>
@@ -52,8 +52,10 @@ require_once '../includes/header.php';
         background: #fff;
         overflow: hidden;
     }
+    .profile-card-header { background: #002366; color: white; }
+    .text-indigo { color: #0038A8; }
     .profile-sidebar {
-        background: linear-gradient(160deg, #1a3a5c 0%, #0c1f33 100%);
+        background: linear-gradient(160deg, #002366 0%, #001a4d 100%);
         color: #fff;
         padding: 4rem 2rem;
         text-align: center;
@@ -64,6 +66,7 @@ require_once '../includes/header.php';
         position: absolute;
         top: 0; right: 0; bottom: 0; left: 0;
         background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 86c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm66-3c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm-46-45c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm26 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm16 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z' fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+        pointer-events: none;
     }
     .profile-avatar {
         width: 120px;
@@ -79,6 +82,39 @@ require_once '../includes/header.php';
         font-size: 3.5rem;
         font-weight: 800;
         box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    }
+    .upload-progress {
+        position: absolute;
+        top: 0; left: 0; bottom: 0; right: 0;
+        background: rgba(15, 23, 42, 0.7);
+        backdrop-filter: blur(4px);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        border-radius: 2.5rem;
+        color: white;
+    }
+    .loader-circle {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid #fff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 12px;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .loader-text {
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        opacity: 0.9;
     }
     .profile-form-container {
         padding: 4rem;
@@ -123,7 +159,6 @@ require_once '../includes/header.php';
         background-color: #fff;
         border-color: var(--primary-indigo);
         box-shadow: 0 10px 25px rgba(26, 58, 92, 0.12);
-        transform: translateY(-2px);
     }
     .badge-status {
         font-size: 0.85rem;
@@ -145,7 +180,6 @@ require_once '../includes/header.php';
         transition: all 0.3s;
     }
     .btn-save:hover {
-        transform: translateY(-3px);
         box-shadow: 0 15px 35px rgba(26, 58, 92, 0.45);
     }
 </style>
@@ -156,8 +190,38 @@ require_once '../includes/header.php';
             <div class="row g-0">
                 <!-- Sidebar Info -->
                 <div class="col-lg-4 profile-sidebar">
-                    <div class="profile-avatar">
-                        <?php echo strtoupper(substr($user['username'] ?? 'R', 0, 1)); ?>
+                    <div class="profile-avatar" id="profilePicPreview" style="position: relative; overflow: visible;">
+                        <?php if (!empty($user['profile_image'])): ?>
+                            <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($user['profile_image']); ?>?v=<?php echo time(); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover; border-radius: 2.5rem;">
+                        <?php else: ?>
+                            <?php echo strtoupper(substr($user['username'] ?? 'R', 0, 1)); ?>
+                        <?php endif; ?>
+                        
+                        <label for="profileImageInput" style="
+                            position: absolute;
+                            bottom: -5px;
+                            right: -5px;
+                            background: #fff;
+                            width: 38px;
+                            height: 38px;
+                            border-radius: 10px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #0038A8;
+                            cursor: pointer;
+                            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+                            z-index: 10;
+                            font-size: 1.1rem;
+                        " title="Update Profile Picture">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" id="profileImageInput" accept="image/jpeg,image/png" style="display: none;">
+                        
+                        <div class="upload-progress" id="uploadProgress">
+                            <div class="loader-circle"></div>
+                            <div class="loader-text">Processing...</div>
+                        </div>
                     </div>
                     <h2 class="fw-bold mb-1"><?php echo htmlspecialchars($user['username'] ?? 'Registrar'); ?></h2>
                     <p class="opacity-75 mb-4 text-uppercase tracking-widest small fw-bold"><?php echo $user['role'] ?? 'Registrar'; ?></p>
@@ -238,4 +302,71 @@ require_once '../includes/header.php';
         </div>
     </div>
 </div>
-<?php require_once '../includes/footer.php'; ?>
+<?php 
+$additionalJS = '
+<script>
+$(document).ready(function() {
+    $("#profileImageInput").on("change", function() {
+        const file = this.files[0];
+        if (!file) return;
+
+        const allowedTypes = ["image/jpeg", "image/png"];
+        if (!allowedTypes.includes(file.type)) {
+            Swal.fire({ icon: "error", title: "Invalid File Type", text: "Please select a JPG or PNG image." });
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            Swal.fire({ icon: "error", title: "File Too Large", text: "Image size must be less than 5MB." });
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("profile_image", file);
+        formData.append("csrf_token", "' . getCSRFToken() . '");
+        
+        const startTime = Date.now();
+        $("#uploadProgress").css("display", "flex");
+
+        $.ajax({
+            url: "' . BASE_URL . 'includes/ajax/update_profile_image.php",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                const elapsed = Date.now() - startTime;
+                const minDelay = 5000; // 5 seconds
+                const remaining = Math.max(0, minDelay - elapsed);
+
+                setTimeout(function() {
+                    $("#uploadProgress").hide();
+                    if (response.success) {
+                        window.location.reload();
+                    } else {
+                        Swal.fire({ icon: "error", title: "Upload Failed", text: response.message });
+                    }
+                }, remaining);
+            },
+            error: function(xhr, status, error) {
+                const elapsed = Date.now() - startTime;
+                const minDelay = 2000; // 2 seconds for errors
+                const remaining = Math.max(0, minDelay - elapsed);
+
+                setTimeout(function() {
+                    $("#uploadProgress").hide();
+                    console.error("Upload Error:", status, error, xhr.responseText);
+                    Swal.fire({ 
+                        icon: "error", 
+                        title: "Error", 
+                        text: "An unexpected error occurred. Status: " + status + ", Error: " + error
+                    });
+                }, remaining);
+            }
+        });
+    });
+});
+</script>
+';
+require_once '../includes/footer.php'; 
+?>

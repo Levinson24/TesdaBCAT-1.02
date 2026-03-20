@@ -154,6 +154,9 @@ endif; ?>
             <div class="card-header bg-white py-4 border-0 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-primary"><i class="fas fa-book-open me-2"></i> Academic Enrollments</h5>
                 <div>
+                   <a href="../dept_head/manage_student_schedule.php?student_id=<?php echo $studentId; ?>" class="btn btn-dark btn-sm rounded-pill px-3 me-2">
+                        <i class="fas fa-calendar-check me-1"></i> Manage Enrollment
+                    </a>
                    <a href="../registrar/curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn btn-outline-primary btn-sm rounded-pill px-3 me-2" target="_blank">
                         <i class="fas fa-print me-1"></i> Evaluation Report
                     </a>

@@ -17,7 +17,7 @@ if (!$studentId) {
 $regStmt = $conn->prepare("SELECT username FROM users WHERE role = 'registrar' LIMIT 1");
 $regStmt->execute();
 $regUser = $regStmt->get_result()->fetch_assoc();
-$registrarName = $regUser ? $regUser['username'] : 'Authorized Registrar';
+$registrarName = $regUser ? strtoupper($regUser['username']) : 'AUTHORIZED REGISTRAR';
 $registrarPosition = getSetting('registrar_position', 'Registrar');
 $regStmt->close();
 
@@ -40,6 +40,28 @@ if (!$student) {
     redirectWithMessage('students.php', 'Student not found.', 'danger');
 }
 
+// Fetch Department Head Name
+$deptStmt = $conn->prepare("
+    SELECT u.username, i.first_name, i.last_name, i.middle_name 
+    FROM users u 
+    LEFT JOIN instructors i ON u.user_id = i.user_id 
+    WHERE u.role = 'dept_head' AND (i.dept_id = ? OR i.dept_id IS NULL)
+    LIMIT 1
+");
+$deptStmt->bind_param("i", $student['dept_id']);
+$deptStmt->execute();
+$deptHeadResult = $deptStmt->get_result()->fetch_assoc();
+$deptHeadName = 'DEPARTMENT HEAD';
+if ($deptHeadResult) {
+    if (!empty($deptHeadResult['first_name']) && !empty($deptHeadResult['last_name'])) {
+        $mi = !empty($deptHeadResult['middle_name']) ? substr($deptHeadResult['middle_name'], 0, 1) . '. ' : '';
+        $deptHeadName = strtoupper($deptHeadResult['first_name'] . ' ' . $mi . $deptHeadResult['last_name']);
+    } else {
+        $deptHeadName = strtoupper($deptHeadResult['username']);
+    }
+}
+$deptStmt->close();
+
 // Department Access Check for Staff
 $userRole = getCurrentUserRole();
 if ($userRole === 'registrar_staff') {
@@ -51,7 +73,7 @@ if ($userRole === 'registrar_staff') {
 }
 
 // Log audit action
-logAudit(getCurrentUserId(), 'PRINT', 'enrollments', $studentId, null, 'Generated official Certificate of Registration (COR) for student: ' . ($student['student_no'] ?? $studentId));
+logAudit(getCurrentUserId(), 'PRINT_COR', 'enrollments', $studentId, null, 'Generated official Certificate of Registration (COR) for student: ' . ($student['student_no'] ?? $studentId));
 
 // Get current academic settings
 $currentSemester = getSetting('current_semester', '1st');
@@ -71,7 +93,8 @@ $vHash = hash('sha256', 'BCAT_COR_' . $corId);
 // Construct Verification URL
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'];
-$verifyUrl = "$protocol://$host/verify.php?cid=$corId&v=$vHash";
+$baseDir = rtrim(dirname(dirname($_SERVER['PHP_SELF'])), '/\\');
+$verifyUrl = "$protocol://$host$baseDir/verify.php?cid=$corId&v=$vHash";
 
 // Get current enrollment records (filtered by current semester/year)
 $stmt = $conn->prepare("
@@ -100,26 +123,121 @@ $stmt->execute();
 $enrollments_res = $stmt->get_result();
 
 $enrollments = [];
-if ($enrollments_res->num_rows > 0) {
-    while ($row = $enrollments_res->fetch_assoc()) {
-        $enrollments[] = $row;
-    }
-}
-else {
-    // Audit check: Check if student has ANY enrollments at all to diagnose zero-units issue
-    $check_res = $conn->query("SELECT COUNT(*) as total FROM enrollments WHERE student_id = $studentId");
-    $has_any = $check_res->fetch_assoc()['total'] > 0;
-    if ($has_any) {
-        $debug_msg = "Note: Student has enrollments, but not for the current cycle ($currentSemester, $academicYear).";
-    }
+while ($row = $enrollments_res->fetch_assoc()) {
+    $enrollments[] = $row;
 }
 $stmt->close();
-$periodTitle = $currentSemester . " SEMESTER, SY " . $academicYear;
+
+$periodTitle = strtoupper($currentSemester . " Semester, SY " . $academicYear);
+
+// --- Pagination Logic (Dynamic 10-row chunks) ---
+$rowsPerPage = 8;
+$pages = array_chunk($enrollments, $rowsPerPage);
+if (empty($pages)) $pages = [[]]; // Ensure at least one page
+$totalPageCount = count($pages);
+
+// Reusable Document Components
+function renderDocumentHeader($schoolName, $schoolRegion, $schoolAddress) {
+?>
+    <div class="d-flex justify-content-between align-items-center mb-0 transcript-header">
+        <div class="header-logo">
+            <img src="../BCAT logo 2024.png" alt="Logo Left" class="img-fluid" style="max-height: 100px;">
+        </div>
+        <div class="header-text text-center mx-3" style="flex: 1;">
+            <h6 class="mb-0 text-uppercase fw-normal small" style="letter-spacing: 1px; color: #64748b;">Republic of the Philippines</h6>
+            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #1e293b;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
+            <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolRegion); ?></h6>
+            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0f172a; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
+            <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolAddress); ?></h6>
+        </div>
+        <div class="header-logo">
+            <img src="../tesda_logo.png" alt="TESDA Logo" class="img-fluid" style="max-height: 100px;">
+        </div>
+    </div>
+    <div class="header-double-line"></div>
+<?php
+}
+
+function renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verifyUrl, $corId, $finalTotalUnits, $gwa, $fullName, $registrarName, $registrarPosition, $deptHeadName) {
+?>
+    <div class="mt-auto pt-3">
+        <?php if ($isLastPage): ?>
+        <div class="row g-3 mb-4 mt-2">
+            <div class="col-8">
+                <div class="d-flex align-items-center p-3 border rounded bg-white shadow-sm mb-3">
+                    <div class="me-3 p-1 bg-white border rounded">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($verifyUrl); ?>" alt="Verification QR" width="80">
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark small">DOCUMENT VERIFICATION</div>
+                        <div class="text-muted small" style="font-size: 0.65rem;">Scan QR to verify this official Certificate of Registration.</div>
+                        <div class="fw-bold text-primary small">REF: COR-<?php echo str_pad($corId, 8, '0', STR_PAD_LEFT); ?></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="card border-primary shadow-sm">
+                    <div class="card-body p-2">
+                        <div class="d-flex justify-content-between border-bottom pb-1 mb-1">
+                            <span class="fw-bold small">Total Units:</span>
+                            <span class="fw-bold text-primary"><?php echo $finalTotalUnits; ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-bold small">GWA:</span>
+                            <span class="fw-bold text-primary"><?php echo number_format($gwa, 2); ?></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-3 g-2">
+            <div class="col-4 text-center">
+                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo $fullName; ?></div>
+                <div class="text-muted" style="font-size: 0.65rem;">Student Signature</div>
+            </div>
+            <div class="col-4 text-center">
+                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo htmlspecialchars($deptHeadName); ?></div>
+                <div class="text-muted" style="font-size: 0.65rem;">Department Head / Dean</div>
+            </div>
+            <div class="col-4 text-center">
+                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo htmlspecialchars($registrarName); ?></div>
+                <div class="text-muted" style="font-size: 0.65rem;"><?php echo htmlspecialchars($registrarPosition); ?> / Authorized Officer</div>
+            </div>
+        </div>
+        <?php else: ?>
+        <div class="text-center py-4 border-top">
+            <div class="text-muted italic">
+                <i class="fas fa-chevron-circle-down me-1"></i>
+                <em>Continued on Page <?php echo $pageNumber + 1; ?> of <?php echo $totalPageCount; ?>...</em>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <div class="d-flex justify-content-center align-items-center text-center text-muted small border-top pt-2 mt-2">
+            <div style="width: 50px; height: 50px; border: 1.5px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; color: #94a3b8; margin-right: 12px; border-radius: 4px; line-height: 1.1;">
+                DRY<br>SEAL
+            </div>
+            <div class="text-start">
+                <strong>REMINDER:</strong> NOT VALID without official dry seal.<br>
+                <span>Date Generated: <?php echo date('M d, Y h:i A'); ?></span>
+            </div>
+        </div>
+    </div>
+<?php
+}
 
 $fullName = strtoupper($student['last_name'] . ', ' . $student['first_name'] . ' ' . ($student['middle_name'] ?? ''));
 $schoolName = getSetting('school_name', 'BALICUATRO COLLEGE OF ARTS AND TRADES');
 $schoolRegion = getSetting('school_region', 'Region VIII');
 $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
+
+$finalTotalUnits = 0;
+foreach($enrollments as $item) $finalTotalUnits += (isset($item['units']) ? $item['units'] : 0);
+$gwa = calculateGWA($studentId);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,89 +249,118 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
     <style>
         body { background-color: #f1f5f9; padding: 20px; font-family: 'Inter', sans-serif; }
         .cor-container {
-            max-width: 850px;
-            margin: auto;
+            max-width: 900px;
+            margin: 30px auto;
             background: white;
             padding: 40px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+            min-height: 297mm;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
         .header-logo img { max-height: 80px; }
         .official-title { font-weight: 800; letter-spacing: 1px; border-bottom: 2px solid #0d6efd; display: inline-block; padding-bottom: 5px; }
         .info-label { font-weight: 600; color: #64748b; width: 120px; display: inline-block; }
-        .info-value { font-weight: 700; border-bottom: 1px solid #e2e8f0; flex-grow: 1; }
+        .info-value { font-weight: 700; border-bottom: 1.5px dotted #cbd5e0; flex-grow: 1; padding-left: 5px; }
         .table thead th { background: #2d3748; color: white; font-size: 0.75rem; text-transform: uppercase; padding: 6px 4px; border: none; }
         .table td { font-size: 0.85rem; padding: 4px 6px; }
-        .table-record { font-size: 8pt !important; table-layout: fixed; width: 100%; }
-        .table-record thead th { background: #2d3748 !important; color: white !important; font-size: 7.5pt !important; padding: 4px 6px !important; text-transform: uppercase; border: 1px solid #2d3748 !important; }
-        .table-record td { padding: 3px 6px !important; vertical-align: middle; word-wrap: break-word; overflow-wrap: break-word; }
+        .cor-container { position: relative; }
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            height: auto;
+            opacity: 0.05;
+            pointer-events: none;
+            z-index: 0;
+            user-select: none;
+        }
+        .header-double-line {
+            border-top: 2px solid #1e293b;
+            border-bottom: 1px solid #1e293b;
+            height: 4px;
+            margin: 10px 0 15px 0;
+        }
+        
         @media print {
-            @page {
-                margin: 10mm;
-                size: A4 portrait;
-            }
-
-            * {
-                box-sizing: border-box !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            body { background: white !important; padding: 0 !important; margin: 0 !important; font-size: 10pt; width: auto !important; max-width: 100% !important; }
+            body { padding: 0; background: white; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .cor-container { 
-                box-shadow: none !important; 
-                border: none !important; 
-                width: 100% !important; 
-                max-width: 100% !important; 
-                margin: 0 !important;
-                padding: 10mm !important; /* Added internal padding instead of body margin */
+                box-shadow: none; 
+                margin: 0; 
+                border-radius: 0; 
+                padding: 8mm 12mm; 
+                width: 100%;
+                min-height: auto;
+                height: auto;
+                overflow: hidden;
             }
             .no-print { display: none !important; }
-            .official-title { font-size: 1.15rem !important; border-bottom: 2px solid #000 !important; }
-            .table { font-size: 8pt !important; width: 100% !important; }
-            .table thead th { padding: 4px 6px !important; background: #2d3748 !important; color: white !important; }
-            .table td { padding: 3px 6px !important; }
-            .mt-3 { margin-top: 0.75rem !important; }
-            
-            @page {
-                margin: 0;
-                size: A4 portrait;
-            }
+            .official-title { font-size: 1.1rem !important; }
+            .badge { border: 1px solid #000; color: #000 !important; }
+            @page { margin: 5mm; size: auto; }
+        }
     </style>
 </head>
 <body>
-    <div class="no-print text-end mb-3">
-        <button class="btn btn-secondary" onclick="window.close()">Close</button>
-        <button class="btn btn-primary" onclick="window.print()">Print COR</button>
+    <div class="no-print text-center mb-4">
+        <button class="btn btn-secondary px-4 me-2" onclick="window.close()">Close</button>
+        <button class="btn btn-primary px-4" onclick="window.print()"><i class="fas fa-print me-2"></i> Print COR</button>
     </div>
 
-    <div class="cor-container">
-        <div class="d-flex justify-content-center align-items-center mb-2 text-center">
-            <img src="../BCAT logo 2024.png" alt="Logo" style="max-height: 75px; margin-right: 15px;">
-            <div style="max-width: 600px;">
-                <h6 class="mb-0 text-uppercase" style="font-size: 0.75rem;">Republic of the Philippines</h6>
-                <h6 class="mb-0 fw-bold" style="font-size: 0.85rem;">Technical Education and Skills Development Authority</h6>
-                <h5 class="mb-0 fw-bold mt-1" style="font-size: 1rem;"><?php echo htmlspecialchars($schoolName); ?></h5>
-                <small class="text-muted" style="font-size: 0.75rem;"><?php echo htmlspecialchars($schoolAddress); ?></small>
+    <?php foreach ($pages as $pIndex => $pageEnrollments): 
+        $pageNumber = $pIndex + 1;
+        $isLastPage = ($pageNumber === $totalPageCount);
+    ?>
+    <div class="cor-container" style="<?php echo $pageNumber < $totalPageCount ? 'page-break-after: always;' : ''; ?>; <?php echo $pageNumber > 1 ? 'margin-top: 50px;' : ''; ?>">
+        <img src="../BCAT logo 2024.png" class="watermark" alt="BCAT Watermark">
+        
+        <?php renderDocumentHeader($schoolName, $schoolRegion, $schoolAddress); ?>
+
+        <?php if ($totalPageCount > 1): ?>
+            <div class="text-end w-100" style="margin-top: -10px; margin-bottom: -5px;">
+                <span class="fw-bold text-muted" style="font-size: 0.75rem; letter-spacing: 0.5px;">PAGE <?php echo $pageNumber; ?> OF <?php echo $totalPageCount; ?></span>
             </div>
-            <img src="../tesda_logo.png" alt="TESDA" style="max-height: 75px; margin-left: 15px;">
+        <?php endif; ?>
+
+        <div class="text-center my-3">
+            <h5 class="official-title" style="font-size: 1.1rem;">CERTIFICATE OF REGISTRATION (COR)</h5>
+            <div class="title-underline mx-auto"></div>
+            <p class="mt-1 fw-bold text-primary" style="font-size: 0.85rem;"><?php echo $periodTitle; ?></p>
         </div>
 
-        <div class="text-center my-2">
-            <h4 class="official-title" style="font-size: 1.15rem;">CERTIFICATE OF REGISTRATION</h4>
-            <p class="text-muted fw-bold mb-0" style="font-size: 0.8rem;"><?php echo htmlspecialchars($periodTitle); ?></p>
-        </div>
-
-        <div class="row mb-2 g-2">
-            <div class="col-md-7">
-                <div class="d-flex mb-1"><span class="info-label">Name:</span><span class="info-value"><?php echo $fullName; ?></span></div>
-                <div class="d-flex mb-1"><span class="info-label">Student No:</span><span class="info-value"><?php echo htmlspecialchars($student['student_no']); ?></span></div>
-                <div class="d-flex mb-1"><span class="info-label">Program:</span><span class="info-value"><?php echo htmlspecialchars($student['program_name'] ?? 'N/A'); ?></span></div>
+        <!-- Student Information Block (Persistent) -->
+        <div class="row mb-3 g-3">
+            <div class="col-6">
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 100px;">Name:</span>
+                    <span class="info-value text-uppercase"><?php echo $fullName; ?></span>
+                </div>
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 100px;">Student No:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($student['student_no']); ?></span>
+                </div>
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 100px;">Program:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($student['program_name'] ?? 'N/A'); ?></span>
+                </div>
             </div>
-            <div class="col-md-5">
-                <div class="d-flex mb-1"><span class="info-label">College / DP:</span><span class="info-value"><?php echo htmlspecialchars(($student['college_name'] ? $student['college_name'] . ' - ' : '') . ($student['dept_name'] ?? 'N/A')); ?></span></div>
-                <div class="d-flex mb-1"><span class="info-label">Year Level:</span><span class="info-value"><?php echo htmlspecialchars($student['year_level']); ?></span></div>
-                <div class="d-flex mb-1"><span class="info-label">Date:</span><span class="info-value"><?php echo date('M d, Y'); ?></span></div>
+            <div class="col-6">
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 110px;">College/DP:</span>
+                    <span class="info-value" style="font-size: 0.8rem;"><?php echo htmlspecialchars($student['dept_name'] ?? 'N/A'); ?></span>
+                </div>
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 110px;">Year Level:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($student['year_level']); ?></span>
+                </div>
+                <div class="info-group mb-1 d-flex">
+                    <span class="info-label" style="width: 110px;">Date Issued:</span>
+                    <span class="info-value"><?php echo date('M d, Y'); ?></span>
+                </div>
             </div>
         </div>
 
@@ -229,11 +376,9 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             </thead>
             <tbody>
                 <?php
-$totalUnits = 0;
-if (!empty($enrollments)):
-    foreach ($enrollments as $e):
-        $totalUnits += $e['units'];
-?>
+                if (!empty($pageEnrollments)):
+                    foreach ($pageEnrollments as $e):
+                ?>
                 <tr>
                     <td><?php echo htmlspecialchars($e['class_code'] ?? ''); ?></td>
                     <td><?php echo htmlspecialchars($e['course_code'] ?? ''); ?></td>
@@ -248,70 +393,18 @@ if (!empty($enrollments)):
                     <td class="text-center"><?php echo $e['units']; ?></td>
                 </tr>
                 <?php
-    endforeach; ?>
-                <tr class="fw-bold bg-light">
-                    <td colspan="4" class="text-end">Total Units:</td>
-                    <td class="text-center"><?php echo $totalUnits; ?></td>
-                </tr>
-                <?php
-    $gwa = calculateGWA($studentId);
-    $hasBacklog = hasAcademicBacklog($studentId);
-    $honors = $student['academic_honor']; // Use manually assigned honor
-?>
-                <tr class="fw-bold">
-                    <td colspan="4" class="text-end bg-primary text-white">General Weighted Average (GWA):</td>
-                    <td class="text-center bg-primary text-white"><?php echo $gwa !== null ? number_format($gwa, 2) : '0.00'; ?></td>
-                </tr>
-                <?php if (!$hasBacklog && $honors): ?>
-                <tr class="fw-bold">
-                    <td colspan="4" class="text-end bg-success text-white">Academic Honor:</td>
-                    <td class="text-center bg-success text-white"><i class="fas fa-medal me-1"></i> <?php echo htmlspecialchars($honors); ?></td>
-                </tr>
-                <?php endif; ?>
-                <?php
-else: ?>
-                <tr><td colspan="4" class="text-center py-4 text-muted">No active enrollment found for this semester.</td></tr>
-                <?php
-endif; ?>
+                    endforeach; 
+                endif; 
+                ?>
             </tbody>
         </table>
 
-        <div class="mt-3">
-            <div class="row align-items-center">
-                <div class="col-8">
-                    <div class="d-flex align-items-center mb-0">
-                        <div class="me-3 p-1 bg-white border rounded">
-                            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($verifyUrl); ?>" alt="Verification QR" width="90">
-                        </div>
-                        <div>
-                            <div class="fw-bold text-dark" style="font-size: 0.75rem;">DOCUMENT VERIFICATION</div>
-                            <div class="text-muted" style="font-size: 0.65rem;">Scan this QR code to verify the authenticity of this official Certificate of Registration.</div>
-                            <div class="mt-1 fw-bold text-primary" style="font-size: 0.6rem;">REF ID: COR-<?php echo str_pad($corId, 8, '0', STR_PAD_LEFT); ?></div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-4">
-                    <div style="font-size: 7.5pt; color: #718096; line-height: 1.4; text-align: right;">
-                        Authorized Signature<br>
-                        Date: <?php echo date('M d, Y h:i A'); ?><br>
-                        <em>Not valid without dry seal.</em>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row mt-4">
-                <div class="col-6 text-center">
-                    <div style="border-bottom: 1.5px solid #1e293b; width: 80%; margin: 40px auto 4px auto;"></div>
-                    <div class="fw-bold text-uppercase" style="font-size: 0.9rem;"><?php echo $fullName; ?></div>
-                    <small class="text-muted">Student Signature</small>
-                </div>
-                <div class="col-6 text-center">
-                    <div style="border-bottom: 1.5px solid #1e293b; width: 80%; margin: 40px auto 4px auto;"></div>
-                    <div class="fw-bold text-uppercase" style="font-size: 0.9rem;"><?php echo htmlspecialchars($registrarName); ?></div>
-                    <small class="text-muted"><?php echo htmlspecialchars($registrarPosition); ?> / Authorized Officer</small>
-                </div>
-            </div>
-        </div>
+        <div style="flex-grow: 1;"></div>
+
+        <?php 
+        renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verifyUrl, $corId, $finalTotalUnits, $gwa, $fullName, $registrarName, $registrarPosition, $deptHeadName); 
+        ?>
     </div>
+    <?php endforeach; ?>
 </body>
 </html>

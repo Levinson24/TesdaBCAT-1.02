@@ -15,6 +15,9 @@ class Border extends StyleBase
         'right',
     ];
 
+    /**
+     * @var array
+     */
     public const BORDER_MAPPINGS = [
         'borderStyle' => [
             'continuous' => BorderStyle::BORDER_HAIR,
@@ -50,57 +53,58 @@ class Border extends StyleBase
         ],
     ];
 
-    /**
-     * @param string[] $namespaces
-     *
-     * @return mixed[]
-     */
     public function parseStyle(SimpleXMLElement $styleData, array $namespaces): array
     {
         $style = [];
 
-        $diagonalDirection = Borders::DIAGONAL_NONE;
+        $diagonalDirection = '';
+        $borderPosition = '';
         foreach ($styleData->Border as $borderStyle) {
             $borderAttributes = self::getAttributes($borderStyle, $namespaces['ss']);
-            /** @var array{color?: array{rgb: string}, borderStyle: string} */
             $thisBorder = [];
             $styleType = (string) $borderAttributes->Weight;
             $styleType .= strtolower((string) $borderAttributes->LineStyle);
             $thisBorder['borderStyle'] = self::BORDER_MAPPINGS['borderStyle'][$styleType] ?? BorderStyle::BORDER_NONE;
 
-            $color = (string) ($borderAttributes['Color'] ?? '');
-            if ($color !== '') {
-                $thisBorder['color']['rgb'] = substr($color, 1);
-            }
-            $position = (string) ($borderAttributes['Position'] ?? '');
-            if ($position !== '') {
-                [$borderPosition, $diagonalDirection] = $this->parsePosition($position, $diagonalDirection);
-                if ($borderPosition) {
-                    $style['borders'][$borderPosition] = $thisBorder;
-                } elseif ($diagonalDirection !== Borders::DIAGONAL_NONE) {
-                    $style['borders']['diagonalDirection'] = $diagonalDirection;
-                    $style['borders']['diagonal'] = $thisBorder;
+            foreach ($borderAttributes as $borderStyleKey => $borderStyleValuex) {
+                $borderStyleValue = (string) $borderStyleValuex;
+                switch ($borderStyleKey) {
+                    case 'Position':
+                        [$borderPosition, $diagonalDirection]
+                            = $this->parsePosition($borderStyleValue, $diagonalDirection);
+
+                        break;
+                    case 'Color':
+                        $borderColour = substr($borderStyleValue, 1);
+                        $thisBorder['color']['rgb'] = $borderColour;
+
+                        break;
                 }
+            }
+
+            if ($borderPosition) {
+                $style['borders'][$borderPosition] = $thisBorder;
+            } elseif ($diagonalDirection) {
+                $style['borders']['diagonalDirection'] = $diagonalDirection;
+                $style['borders']['diagonal'] = $thisBorder;
             }
         }
 
         return $style;
     }
 
-    /** @return array{0: string, 1: int} */
-    protected function parsePosition(string $borderStyleValue, int $diagonalDirection): array
+    protected function parsePosition(string $borderStyleValue, string $diagonalDirection): array
     {
         $borderStyleValue = strtolower($borderStyleValue);
-        $borderPosition = '';
 
         if (in_array($borderStyleValue, self::BORDER_POSITIONS)) {
             $borderPosition = $borderStyleValue;
         } elseif ($borderStyleValue === 'diagonalleft') {
-            $diagonalDirection = ($diagonalDirection !== Borders::DIAGONAL_NONE) ? Borders::DIAGONAL_BOTH : Borders::DIAGONAL_DOWN;
+            $diagonalDirection = $diagonalDirection ? Borders::DIAGONAL_BOTH : Borders::DIAGONAL_DOWN;
         } elseif ($borderStyleValue === 'diagonalright') {
-            $diagonalDirection = ($diagonalDirection !== Borders::DIAGONAL_NONE) ? Borders::DIAGONAL_BOTH : Borders::DIAGONAL_UP;
+            $diagonalDirection = $diagonalDirection ? Borders::DIAGONAL_BOTH : Borders::DIAGONAL_UP;
         }
 
-        return [$borderPosition, $diagonalDirection];
+        return [$borderPosition ?? null, $diagonalDirection];
     }
 }

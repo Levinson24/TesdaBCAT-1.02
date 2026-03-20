@@ -130,7 +130,12 @@ class File
 
     public static function temporaryFilename(): string
     {
-        return tempnam(self::sysGetTempDir(), 'phpspreadsheet') ?: throw new Exception('Could not create temporary file');
+        $filename = tempnam(self::sysGetTempDir(), 'phpspreadsheet');
+        if ($filename === false) {
+            throw new Exception('Could not create temporary file');
+        }
+
+        return $filename;
     }
 
     /**
@@ -138,8 +143,12 @@ class File
      */
     public static function assertFile(string $filename, string $zipMember = ''): void
     {
-        if (!is_file($filename) || !is_readable($filename)) {
-            throw new ReaderException('File "' . $filename . '" does not exist or is not readable.');
+        if (!is_file($filename)) {
+            throw new ReaderException('File "' . $filename . '" does not exist.');
+        }
+
+        if (!is_readable($filename)) {
+            throw new ReaderException('Could not open "' . $filename . '" for reading.');
         }
 
         if ($zipMember !== '') {
@@ -159,7 +168,10 @@ class File
      */
     public static function testFileNoThrow(string $filename, ?string $zipMember = null): bool
     {
-        if (!is_file($filename) || !is_readable($filename)) {
+        if (!is_file($filename)) {
+            return false;
+        }
+        if (!is_readable($filename)) {
             return false;
         }
         if ($zipMember === null) {

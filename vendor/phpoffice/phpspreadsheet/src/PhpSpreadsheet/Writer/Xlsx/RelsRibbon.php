@@ -35,7 +35,6 @@ class RelsRibbon extends WriterPart
                 $objWriter->startElement('Relationship');
                 $objWriter->writeAttribute('Id', $aId);
                 $objWriter->writeAttribute('Type', Namespaces::IMAGE);
-                /** @var string $aTarget */
                 $objWriter->writeAttribute('Target', $aTarget);
                 $objWriter->endElement();
             }

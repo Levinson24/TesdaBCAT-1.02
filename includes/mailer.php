@@ -52,6 +52,15 @@ function sendSystemEmail($toEmail, $toName, $subject, $htmlBody)
         $mail->Port       = $smtpPort;
         $mail->CharSet    = 'UTF-8';
 
+        // SSL verification bypass for localhost (common issue)
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true
+            ]
+        ];
+
         $mail->setFrom($smtpUser, $fromName);
         $mail->addAddress($toEmail, $toName);
         $mail->isHTML(true);
@@ -68,29 +77,30 @@ function sendSystemEmail($toEmail, $toName, $subject, $htmlBody)
 }
 
 /**
- * Send password reset email
+ * Send password reset email with 6-digit code
  */
-function sendPasswordResetEmail($username, $toEmail, $resetUrl)
+function sendPasswordResetEmail($username, $toEmail, $resetCode)
 {
     $schoolName = getSetting('school_name', 'TESDA-BCAT');
-    $subject    = "[{$schoolName}] Password Reset Request";
+    $subject    = "[{$schoolName}] Password Reset Request Code";
 
     $html = "
     <div style='font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;'>
-        <div style='background:linear-gradient(135deg,#1a3a5c,#0f2a47);padding:32px 24px;text-align:center;color:white;'>
-            <h2 style='margin:0;font-size:1.4rem;'>🔐 Password Reset</h2>
+        <div style='background:linear-gradient(135deg,#0038A8,#002366);padding:32px 24px;text-align:center;color:white;'>
+        <div style='background-color:#0038A8;padding:32px 24px;text-align:center;color:white;'>
+            <h2 style='margin:0;font-size:1.4rem;'>🔐 Verification Code</h2>
             <p style='margin:0.5rem 0 0;opacity:0.8;font-size:0.875rem;'>{$schoolName}</p>
         </div>
         <div style='padding:32px 24px;'>
             <p style='font-size:1rem;color:#1e293b;'>Hello <strong>" . htmlspecialchars($username) . "</strong>,</p>
-            <p style='color:#475569;'>We received a request to reset your password. Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.</p>
-            <div style='text-align:center;margin:2rem 0;'>
-                <a href='" . htmlspecialchars($resetUrl) . "'
-                   style='background:#1a3a5c;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;display:inline-block;'>
-                    Reset My Password
-                </a>
+            <p style='color:#475569;'>We received a request to reset your password. Use the following 6-digit request code to proceed. This code is valid for <strong>1 hour</strong>.</p>
+            
+            <div style='text-align:center;margin:2rem 0;background:#f8fafc;padding:24px;border-radius:10px;border:1px dashed #cbd5e0;'>
+                <span style='font-size:2.5rem;font-weight:800;letter-spacing:10px;color:#0038A8;'>" . htmlspecialchars($resetCode) . "</span>
             </div>
-            <p style='color:#94a3b8;font-size:0.8rem;'>If you didn't request this, you can safely ignore this email — your password will remain unchanged.</p>
+            
+            <p style='color:#64748b;font-size:0.85rem;text-align:center;'>Enter this code on the password reset page to set a new password.</p>
+            <p style='color:#94a3b8;font-size:0.8rem;margin-top:2rem;'>If you didn't request this, you can safely ignore this email — your password will remain unchanged.</p>
             <hr style='border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;'>
             <p style='color:#94a3b8;font-size:0.75rem;text-align:center;'>&copy; " . date('Y') . " {$schoolName} Grade Management System</p>
         </div>
@@ -109,7 +119,7 @@ function sendGradeNotificationEmail($studentEmail, $studentName, $courseName, $g
 
     $html = "
     <div style='font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;'>
-        <div style='background:linear-gradient(135deg,#1a3a5c,#0f2a47);padding:32px 24px;text-align:center;color:white;'>
+        <div style='background:linear-gradient(135deg,#0038A8,#002366);padding:32px 24px;text-align:center;color:white;'>
             <h2 style='margin:0;font-size:1.4rem;'>📋 Grade Posted</h2>
             <p style='margin:0.5rem 0 0;opacity:0.8;font-size:0.875rem;'>{$schoolName}</p>
         </div>
@@ -123,7 +133,7 @@ function sendGradeNotificationEmail($studentEmail, $studentName, $courseName, $g
                 </tr>
                 <tr>
                     <td style='padding:10px 14px;font-weight:700;color:#64748b;border-bottom:1px solid #e2e8f0;'>Final Grade</td>
-                    <td style='padding:10px 14px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#1a3a5c;font-size:1.1rem;'>" . htmlspecialchars($grade) . "</td>
+                    <td style='padding:10px 14px;border-bottom:1px solid #e2e8f0;font-weight:700;color:#0038A8;font-size:1.1rem;'>" . htmlspecialchars($grade) . "</td>
                 </tr>
                 <tr style='background:#f8fafc;'>
                     <td style='padding:10px 14px;font-weight:700;color:#64748b;'>Period</td>
@@ -176,5 +186,40 @@ function sendEnrollmentNotificationEmail($studentEmail, $studentName, $sectionNa
     </div>";
 
     return sendSystemEmail($studentEmail, $studentName, $subject, $html);
+}
+
+/**
+ * Send password reset code to Administrator (Supervised Reset)
+ */
+function sendAdminResetCodeEmail($adminEmail, $requestingUsername, $requestingEmail, $resetCode)
+{
+    $schoolName = getSetting('school_name', 'TESDA-BCAT');
+    $subject    = "[{$schoolName}] ACTION REQUIRED: Password Reset Code for {$requestingUsername}";
+
+    $html = "
+    <div style='font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;'>
+        <div style='background:linear-gradient(135deg,#e63946,#c1121f);padding:32px 24px;text-align:center;color:white;'>
+            <h2 style='margin:0;font-size:1.4rem;'>🔑 Reset Request Received</h2>
+            <p style='margin:0.5rem 0 0;opacity:0.8;font-size:0.875rem;'>Security Notification</p>
+        </div>
+        <div style='padding:32px 24px;'>
+            <p style='font-size:1rem;color:#1e293b;'>Hello Administrator,</p>
+            <p style='color:#475569;'>A user has requested a password reset. Because the system is set to <strong>Supervised Reset</strong>, the code has been sent to you. Please provide this code to the user after verifying their identity.</p>
+            
+            <div style='background:#f8fafc;padding:20px;border-radius:10px;margin:1.5rem 0;border:1px solid #e2e8f0;'>
+                <p style='margin:0 0 10px;font-size:0.9rem;'><strong>Requesting User:</strong> " . htmlspecialchars($requestingUsername) . "</p>
+                <p style='margin:0 0 10px;font-size:0.9rem;'><strong>User Email:</strong> " . htmlspecialchars($requestingEmail) . "</p>
+                <div style='text-align:center;padding:15px;background:white;border:2px dashed #0038A8;border-radius:8px;'>
+                    <span style='font-size:2rem;font-weight:800;letter-spacing:8px;color:#0038A8;'>" . htmlspecialchars($resetCode) . "</span>
+                </div>
+            </div>
+            
+            <p style='color:#94a3b8;font-size:0.8rem;'>The user will be waiting on the verification screen to enter this 6-digit code.</p>
+            <hr style='border:none;border-top:1px solid #e2e8f0;margin:1.5rem 0;'>
+            <p style='color:#94a3b8;font-size:0.75rem;text-align:center;'>&copy; " . date('Y') . " {$schoolName} Grade Management System</p>
+        </div>
+    </div>";
+
+    return sendSystemEmail($adminEmail, 'System Administrator', $subject, $html);
 }
 ?>

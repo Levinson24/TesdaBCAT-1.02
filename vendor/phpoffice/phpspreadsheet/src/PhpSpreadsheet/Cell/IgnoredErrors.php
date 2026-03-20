@@ -8,8 +8,6 @@ class IgnoredErrors
 
     private bool $formula = false;
 
-    private bool $formulaRange = false;
-
     private bool $twoDigitTextYear = false;
 
     private bool $evalError = false;
@@ -36,18 +34,6 @@ class IgnoredErrors
     public function getFormula(): bool
     {
         return $this->formula;
-    }
-
-    public function setFormulaRange(bool $value): self
-    {
-        $this->formulaRange = $value;
-
-        return $this;
-    }
-
-    public function getFormulaRange(): bool
-    {
-        return $this->formulaRange;
     }
 
     public function setTwoDigitTextYear(bool $value): self

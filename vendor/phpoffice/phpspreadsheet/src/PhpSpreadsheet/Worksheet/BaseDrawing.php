@@ -132,16 +132,6 @@ class BaseDrawing implements IComparable
     protected $srcRect = [];
 
     /**
-     * Percentage multiplied by 100,000, e.g. 40% = 40,000.
-     * Opacity=x is the same as transparency=100000-x.
-     */
-    protected ?int $opacity = null;
-
-    protected bool $inCell = false;
-
-    protected int $index = 0;
-
-    /**
      * Create a new BaseDrawing.
      */
     public function __construct()
@@ -207,30 +197,20 @@ class BaseDrawing implements IComparable
                 if (!($this instanceof Drawing && $this->getPath() === '')) {
                     $this->worksheet->getCell($this->coordinates);
                 }
-                if ($this->inCell) {
-                    $this->worksheet->getInCellDrawingCollection()
-                        ->append($this);
-                } else {
-                    $this->worksheet->getDrawingCollection()
-                        ->append($this);
-                }
+                $this->worksheet->getDrawingCollection()
+                    ->append($this);
             }
         } else {
             if ($overrideOld) {
                 // Remove drawing from old Worksheet
-                $collections = [
-                    $this->worksheet->getDrawingCollection(),
-                    $this->worksheet->getInCellDrawingCollection(),
-                ];
+                $iterator = $this->worksheet->getDrawingCollection()->getIterator();
 
-                foreach ($collections as $collection) {
-                    foreach ($collection as $key => $drawing) {
-                        if ($drawing->getHashCode() === $this->getHashCode()) {
-                            $collection->offsetUnset($key);
-                            $this->worksheet = null;
+                while ($iterator->valid()) {
+                    if ($iterator->current()->getHashCode() === $this->getHashCode()) {
+                        $this->worksheet->getDrawingCollection()->offsetUnset($iterator->key());
+                        $this->worksheet = null;
 
-                            break 2; // break both loops
-                        }
+                        break;
                     }
                 }
 
@@ -372,12 +352,9 @@ class BaseDrawing implements IComparable
      */
     public function setWidthAndHeight(int $width, int $height): self
     {
-        if ($this->width === 0 || $this->height === 0 || $width === 0 || $height === 0 || !$this->resizeProportional) {
-            $this->width = $width;
-            $this->height = $height;
-        } else {
-            $xratio = $width / $this->width;
-            $yratio = $height / $this->height;
+        $xratio = $width / ($this->width != 0 ? $this->width : 1);
+        $yratio = $height / ($this->height != 0 ? $this->height : 1);
+        if ($this->resizeProportional && !($width == 0 || $height == 0)) {
             if (($xratio * $this->height) < $height) {
                 $this->height = (int) ceil($xratio * $this->height);
                 $this->width = $width;
@@ -385,6 +362,9 @@ class BaseDrawing implements IComparable
                 $this->width = (int) ceil($yratio * $this->width);
                 $this->height = $height;
             }
+        } else {
+            $this->width = $width;
+            $this->height = $height;
         }
 
         return $this;
@@ -573,41 +553,5 @@ class BaseDrawing implements IComparable
     public function getFlipVertical(): bool
     {
         return $this->flipVertical;
-    }
-
-    public function setOpacity(?int $opacity): self
-    {
-        $this->opacity = $opacity;
-
-        return $this;
-    }
-
-    public function getOpacity(): ?int
-    {
-        return $this->opacity;
-    }
-
-    public function setInCell(bool $inCell): self
-    {
-        $this->inCell = $inCell;
-
-        return $this;
-    }
-
-    public function isInCell(): ?bool
-    {
-        return $this->inCell;
-    }
-
-    public function setIndex(int $index): self
-    {
-        $this->index = $index;
-
-        return $this;
-    }
-
-    public function getIndex(): int
-    {
-        return $this->index;
     }
 }

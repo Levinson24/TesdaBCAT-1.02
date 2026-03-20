@@ -65,7 +65,7 @@ $studentName   = trim("{$student['last_name']}, {$student['first_name']} " . ($s
 $generatedDate = date('F d, Y');
 
 // Log
-logAudit($studentUserId, 'GRADE_PDF_DOWNLOAD', 'students', $studentId, null, 'Student downloaded grade report PDF');
+logAudit($studentUserId, 'DOWNLOAD_GRADE_REPORT', 'students', $studentId, null, 'Student downloaded personal grade report PDF');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -73,38 +73,86 @@ logAudit($studentUserId, 'GRADE_PDF_DOWNLOAD', 'students', $studentId, null, 'St
     <meta charset="UTF-8">
     <title>Grade Report — <?php echo htmlspecialchars($studentName); ?></title>
     <style>
-        @page { size: A4; margin: 15mm 12mm; }
+        @page { size: A4; margin: 10mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; font-size: 9.5pt; color: #111; }
+        body { font-family: 'Inter', Arial, sans-serif; font-size: 9pt; color: #1e293b; line-height: 1.4; }
 
-        .header-band { background: #1a3a5c; color: white; padding: 10px 16px; display: flex;
-                        align-items: center; gap: 14px; border-radius: 4px 4px 0 0; }
-        .header-band img { width: 46px; height: 46px; border-radius: 50%; background: white; padding: 2px; }
-        .header-band .school-name { font-size: 11pt; font-weight: bold; line-height: 1.3; }
-        .header-band .school-sub  { font-size: 7.5pt; opacity: 0.85; }
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0d6efd;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .header-logo { height: 70px; }
+        .header-text { text-align: center; flex: 1; }
+        .header-text h6 { font-size: 0.75rem; margin-bottom: 2px; color: #64748b; font-weight: normal; text-transform: uppercase; }
+        .header-text h4 { font-size: 1rem; margin-bottom: 2px; color: #0f172a; font-weight: 800; }
+        
+        .doc-title { 
+            text-align: center; 
+            margin: 15px 0; 
+            font-size: 1.1rem; 
+            font-weight: 800; 
+            color: #1e293b; 
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
 
-        .doc-title { text-align: center; margin: 8px 0; font-size: 11pt; font-weight: bold;
-                     letter-spacing: 0.05em; text-transform: uppercase; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 5px; }
+        .info-card { 
+            background: #f8fafc; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 6px; 
+            padding: 12px; 
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: 1.2fr 1fr;
+            gap: 8px 20px;
+        }
+        .info-item { display: flex; font-size: 0.85rem; }
+        .info-label { width: 100px; color: #64748b; font-weight: 600; }
+        .info-value { font-weight: 700; color: #1e293b; border-bottom: 1px dotted #cbd5e0; flex: 1; }
 
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin: 8px 0 10px; font-size: 8.5pt; }
-        .info-grid .label { color: #555; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        thead th { background: #2d3748; color: white; padding: 8px 6px; text-align: left; font-size: 0.7rem; text-transform: uppercase; }
+        tbody td { padding: 6px 6px; border-bottom: 1px solid #e2e8f0; font-size: 0.8rem; }
+        tbody tr:nth-child(even) { background: #fdfdfd; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 4px; }
-        thead tr { background: #1a3a5c; color: white; }
-        thead th { padding: 5px 6px; text-align: left; font-weight: 600; }
-        tbody tr:nth-child(even) { background: #f0f4f8; }
-        tbody td { padding: 4px 6px; border-bottom: 1px solid #e2e8f0; }
+        .sem-header { 
+            background: #f1f5f9; 
+            color: #0d6efd; 
+            font-weight: 800; 
+            font-size: 0.85rem;
+            padding: 8px 12px; 
+            margin: 20px 0 5px; 
+            border-left: 4px solid #0d6efd;
+            text-transform: uppercase;
+        }
+        
+        .sem-summary { 
+            text-align: right; 
+            font-size: 0.8rem; 
+            color: #475569; 
+            padding: 5px; 
+            background: #f8fafc;
+            border-radius: 0 0 4px 4px;
+        }
 
-        .sem-header { background: #e8f0fb; color: #1a3a5c; font-weight: 700; font-size: 8pt;
-                      padding: 4px 6px; margin: 8px 0 2px; border-left: 3px solid #1a3a5c; }
-        .sem-summary { text-align: right; font-size: 8pt; color: #555; padding: 2px 4px; }
+        .passed { color: #059669; font-weight: 700; }
+        .failed { color: #dc2626; font-weight: 700; }
+        .inc    { color: #d97706; font-weight: 700; }
 
-        .passed { color: #16a34a; font-weight: 600; }
-        .failed { color: #dc2626; font-weight: 600; }
-        .inc    { color: #d97706; font-weight: 600; }
-
-        .footer { margin-top: 14px; border-top: 1px solid #ccc; padding-top: 8px;
-                  font-size: 7.5pt; color: #666; display: flex; justify-content: space-between; }
+        .footer { 
+            margin-top: 30px; 
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 0.7rem; 
+            color: #94a3b8; 
+            display: flex; 
+            justify-content: space-between; 
+            font-style: italic;
+        }
 
         @media print {
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -112,23 +160,23 @@ logAudit($studentUserId, 'GRADE_PDF_DOWNLOAD', 'students', $studentId, null, 'St
     </style>
 </head>
 <body>
-    <div class="header-band">
-        <img src="../tesda_logo.png" alt="TESDA" onerror="this.style.display='none'">
-        <div>
-            <div class="school-name"><?php echo htmlspecialchars($schoolName); ?></div>
-            <div class="school-sub"><?php echo htmlspecialchars($schoolAddress); ?> &nbsp;|&nbsp; Grade Management System</div>
+    <div class="header-container">
+        <img src="../BCAT logo 2024.png" class="header-logo" alt="BCAT">
+        <div class="header-text">
+            <h6>Republic of the Philippines</h6>
+            <h4><?php echo htmlspecialchars($schoolName); ?></h4>
+            <h6><?php echo htmlspecialchars($schoolAddress); ?> | GMS Official Report</h6>
         </div>
+        <img src="../tesda_logo.png" class="header-logo" alt="TESDA">
     </div>
 
-    <div class="doc-title">Official Grade Report</div>
+    <div class="doc-title">Student Grade Report</div>
 
-    <div class="info-grid">
-        <div><span class="label">Student Name:</span> <?php echo htmlspecialchars($studentName); ?></div>
-        <div><span class="label">Student No.:</span>  <?php echo htmlspecialchars($student['student_no']); ?></div>
-        <div><span class="label">Program:</span>      <?php echo htmlspecialchars($student['program_name'] ?? '—'); ?></div>
-        <div><span class="label">Department:</span>   <?php echo htmlspecialchars($student['dept_name'] ?? '—'); ?></div>
-        <div><span class="label">Year Level:</span>   <?php echo $student['year_level']; ?></div>
-        <div><span class="label">Date Generated:</span> <?php echo $generatedDate; ?></div>
+    <div class="info-card">
+        <div class="info-item"><span class="info-label">Student Name:</span> <span class="info-value"><?php echo htmlspecialchars($studentName); ?></span></div>
+        <div class="info-item"><span class="info-label">Student No:</span>  <span class="info-value"><?php echo htmlspecialchars($student['student_no']); ?></span></div>
+        <div class="info-item"><span class="info-label">Program:</span>     <span class="info-value"><?php echo htmlspecialchars($student['program_name'] ?? '—'); ?></span></div>
+        <div class="info-item"><span class="info-label">Year Level:</span>  <span class="info-value"><?php echo $student['year_level']; ?></span></div>
     </div>
 
     <?php if (empty($gradesBySemester)): ?>

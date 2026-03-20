@@ -4,7 +4,6 @@ namespace PhpOffice\PhpSpreadsheet\Calculation\Token;
 
 use PhpOffice\PhpSpreadsheet\Calculation\Calculation;
 use PhpOffice\PhpSpreadsheet\Calculation\Engine\BranchPruner;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 
 class Stack
 {
@@ -13,7 +12,7 @@ class Stack
     /**
      * The parser stack for formulae.
      *
-     * @var array<int, array<mixed>>
+     * @var mixed[]
      */
     private array $stack = [];
 
@@ -44,20 +43,18 @@ class Stack
         $this->stack[$this->count++] = $stackItem;
 
         if ($type === 'Function') {
-            $localeFunction = Calculation::localeFunc(StringHelper::convertToString($value));
+            $localeFunction = Calculation::localeFunc($value);
             if ($localeFunction != $value) {
                 $this->stack[($this->count - 1)]['localeValue'] = $localeFunction;
             }
         }
     }
 
-    /** @param array<mixed> $stackItem */
     public function pushStackItem(array $stackItem): void
     {
         $this->stack[$this->count++] = $stackItem;
     }
 
-    /** @return array<mixed> */
     public function getStackItem(string $type, mixed $value, ?string $reference = null): array
     {
         $stackItem = [
@@ -89,8 +86,6 @@ class Stack
 
     /**
      * Pop the last entry from the stack.
-     *
-     * @return null|array<mixed>
      */
     public function pop(): ?array
     {
@@ -103,8 +98,6 @@ class Stack
 
     /**
      * Return an entry from the stack without removing it.
-     *
-     * @return null|array<mixed>
      */
     public function last(int $n = 1): ?array
     {

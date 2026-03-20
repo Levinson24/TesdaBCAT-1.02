@@ -2,7 +2,6 @@
 
 namespace PhpOffice\PhpSpreadsheet\Writer\Xls;
 
-use Composer\Pcre\Preg;
 use PhpOffice\PhpSpreadsheet\Calculation\Calculation;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\DefinedName;
@@ -10,7 +9,6 @@ use PhpOffice\PhpSpreadsheet\Exception as PhpSpreadsheetException;
 use PhpOffice\PhpSpreadsheet\Shared\Date;
 use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Style\Style;
 
 // Original file header of PEAR::Spreadsheet_Excel_Writer_Workbook (used as the base for this class):
@@ -70,8 +68,6 @@ class Workbook extends BIFFwriter
 
     /**
      * Array containing the colour palette.
-     *
-     * @var array<int, array{int, int, int, int}>
      */
     private array $palette;
 
@@ -99,36 +95,26 @@ class Workbook extends BIFFwriter
 
     /**
      * Added fonts. Maps from font's hash => index in workbook.
-     *
-     * @var int[]
      */
     private array $addedFonts = [];
 
     /**
      * Shared number formats.
-     *
-     * @var NumberFormat[]
      */
     private array $numberFormats = [];
 
     /**
      * Added number formats. Maps from numberFormat's hash => index in workbook.
-     *
-     * @var int[]
      */
     private array $addedNumberFormats = [];
 
     /**
      * Sizes of the binary worksheet streams.
-     *
-     * @var int[]
      */
     private array $worksheetSizes = [];
 
     /**
      * Offsets of the binary worksheet streams relative to the start of the global workbook stream.
-     *
-     * @var int[]
      */
     private array $worksheetOffsets = [];
 
@@ -144,15 +130,11 @@ class Workbook extends BIFFwriter
 
     /**
      * Array of unique shared strings in workbook.
-     *
-     * @var array<string, int>
      */
     private array $stringTable;
 
     /**
      * Color cache.
-     *
-     * @var int[]
      */
     private array $colors;
 
@@ -167,8 +149,8 @@ class Workbook extends BIFFwriter
      * @param Spreadsheet $spreadsheet The Workbook
      * @param int $str_total Total number of strings
      * @param int $str_unique Total number of unique strings
-     * @param array<string, int> $str_table String Table
-     * @param int[] $colors Colour Table
+     * @param array $str_table String Table
+     * @param array $colors Colour Table
      * @param Parser $parser The formula parser created for the Workbook
      */
     public function __construct(Spreadsheet $spreadsheet, int &$str_total, int &$str_unique, array &$str_table, array &$colors, Parser $parser)
@@ -228,20 +210,8 @@ class Workbook extends BIFFwriter
         $xfWriter->setFontIndex($fontIndex);
 
         // Background colors, best to treat these after the font so black will come after white in custom palette
-        if ($style->getFill()->getStartColor()->getRGB()) {
-            $xfWriter->setFgColor(
-                $this->addColor(
-                    $style->getFill()->getStartColor()->getRGB()
-                )
-            );
-        }
-        if ($style->getFill()->getEndColor()->getRGB()) {
-            $xfWriter->setBgColor(
-                $this->addColor(
-                    $style->getFill()->getEndColor()->getRGB()
-                )
-            );
-        }
+        $xfWriter->setFgColor($this->addColor($style->getFill()->getStartColor()->getRGB()));
+        $xfWriter->setBgColor($this->addColor($style->getFill()->getEndColor()->getRGB()));
         $xfWriter->setBottomColor($this->addColor($style->getBorders()->getBottom()->getColor()->getRGB()));
         $xfWriter->setTopColor($this->addColor($style->getBorders()->getTop()->getColor()->getRGB()));
         $xfWriter->setRightColor($this->addColor($style->getBorders()->getRight()->getColor()->getRGB()));
@@ -307,9 +277,9 @@ class Workbook extends BIFFwriter
         if (!isset($this->colors[$rgb])) {
             $color
                 = [
-                    (int) hexdec(substr($rgb, 0, 2)),
-                    (int) hexdec(substr($rgb, 2, 2)),
-                    (int) hexdec(substr($rgb, 4)),
+                    hexdec(substr($rgb, 0, 2)),
+                    hexdec(substr($rgb, 2, 2)),
+                    hexdec(substr($rgb, 4)),
                     0,
                 ];
             $colorIndex = array_search($color, $this->palette);
@@ -408,7 +378,7 @@ class Workbook extends BIFFwriter
      * Assemble worksheets into a workbook and send the BIFF data to an OLE
      * storage.
      *
-     * @param int[] $worksheetSizes The sizes in bytes of the binary worksheet streams
+     * @param array $worksheetSizes The sizes in bytes of the binary worksheet streams
      *
      * @return string Binary data for workbook stream
      */
@@ -501,7 +471,7 @@ class Workbook extends BIFFwriter
     private function writeAllNumberFormats(): void
     {
         foreach ($this->numberFormats as $numberFormatIndex => $numberFormat) {
-            $this->writeNumberFormat((string) $numberFormat->getFormatCode(), $numberFormatIndex);
+            $this->writeNumberFormat($numberFormat->getFormatCode(), $numberFormatIndex);
         }
     }
 
@@ -526,13 +496,14 @@ class Workbook extends BIFFwriter
     private function parseDefinedNameValue(DefinedName $definedName): string
     {
         $definedRange = $definedName->getValue();
-        $splitCount = Preg::matchAllWithOffsets(
+        $splitCount = preg_match_all(
             '/' . Calculation::CALCULATION_REGEXP_CELLREF . '/mui',
             $definedRange,
-            $splitRanges
+            $splitRanges,
+            PREG_OFFSET_CAPTURE
         );
 
-        $lengths = array_map([StringHelper::class, 'strlenAllowNull'], array_column($splitRanges[0], 0));
+        $lengths = array_map('strlen', array_column($splitRanges[0], 0));
         $offsets = array_column($splitRanges[0], 1);
 
         $worksheets = $splitRanges[2];
@@ -551,7 +522,7 @@ class Workbook extends BIFFwriter
             if (empty($worksheet)) {
                 if (($offset === 0) || ($definedRange[$offset - 1] !== ':')) {
                     // We should have a worksheet
-                    $worksheet = $definedName->getWorksheet()?->getTitle();
+                    $worksheet = $definedName->getWorksheet() ? $definedName->getWorksheet()->getTitle() : null;
                 }
             } else {
                 $worksheet = str_replace("''", "'", trim($worksheet, "'"));
@@ -678,9 +649,7 @@ class Workbook extends BIFFwriter
                 for ($j = 0; $j < $countPrintArea; ++$j) {
                     $printAreaRect = $printArea[$j]; // e.g. A3:J6
                     $printAreaRect[0] = Coordinate::indexesFromString($printAreaRect[0]);
-                    /** @var string */
-                    $printAreaRect1 = $printAreaRect[1];
-                    $printAreaRect[1] = Coordinate::indexesFromString($printAreaRect1);
+                    $printAreaRect[1] = Coordinate::indexesFromString($printAreaRect[1]);
 
                     $print_rowmin = $printAreaRect[0][1] - 1;
                     $print_rowmax = $printAreaRect[1][1] - 1;
@@ -1116,7 +1085,7 @@ class Workbook extends BIFFwriter
         // combine into one chunk with all the blocks SST, CONTINUE,...
         $chunk = '';
         foreach ($recordDatas as $i => $recordData) {
-            // first block should have the SST record header, remaining should have CONTINUE header
+            // first block should have the SST record header, remaing should have CONTINUE header
             $record = ($i == 0) ? 0x00FC : 0x003C;
 
             $header = pack('vv', $record, strlen($recordData));

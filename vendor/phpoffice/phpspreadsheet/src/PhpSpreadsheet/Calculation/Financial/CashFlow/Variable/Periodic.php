@@ -36,9 +36,6 @@ class Periodic
         }
         $values = Functions::flattenArray($values);
         $guess = Functions::flattenSingleValue($guess);
-        if (!is_numeric($guess)) {
-            return ExcelError::VALUE();
-        }
 
         // create an initial range, with a root somewhere between 0 and guess
         $x1 = 0.0;
@@ -106,9 +103,7 @@ class Periodic
             return ExcelError::DIV0();
         }
         $values = Functions::flattenArray($values);
-        /** @var float */
         $financeRate = Functions::flattenSingleValue($financeRate);
-        /** @var float */
         $reinvestmentRate = Functions::flattenSingleValue($reinvestmentRate);
         $n = count($values);
 
@@ -117,7 +112,6 @@ class Periodic
 
         $npvPos = $npvNeg = 0.0;
         foreach ($values as $i => $v) {
-            /** @var float $v */
             if ($v >= 0) {
                 $npvPos += $v / $rr ** $i;
             } else {
@@ -140,13 +134,12 @@ class Periodic
      *
      * Returns the Net Present Value of a cash flow series given a discount rate.
      *
-     * @param array<mixed> $args
+     * @param array $args
      */
     public static function presentValue(mixed $rate, ...$args): int|float
     {
         $returnValue = 0;
 
-        /** @var float */
         $rate = Functions::flattenSingleValue($rate);
         $aArgs = Functions::flattenArray($args);
 

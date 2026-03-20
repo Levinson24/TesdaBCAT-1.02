@@ -19,6 +19,11 @@ class Settings
     private static ?string $chartRenderer = null;
 
     /**
+     * Default options for libxml loader.
+     */
+    private static ?int $libXmlLoaderOptions = null;
+
+    /**
      * The cache implementation to be used for cell collection.
      */
     private static ?CacheInterface $cache = null;
@@ -52,8 +57,7 @@ class Settings
      */
     public static function setChartRenderer(string $rendererClassName): void
     {
-        // We want phpstan to validate caller, but still need this test
-        if (!is_a($rendererClassName, IRenderer::class, true)) { //* @phpstan-ignore-line
+        if (!is_a($rendererClassName, IRenderer::class, true)) {
             throw new Exception('Chart renderer must implement ' . IRenderer::class);
         }
 
@@ -82,6 +86,36 @@ class Settings
     }
 
     /**
+     * Set default options for libxml loader.
+     *
+     * @param ?int $options Default options for libxml loader
+     *
+     * @deprecated 3.5.0 no longer needed
+     */
+    public static function setLibXmlLoaderOptions(?int $options): int
+    {
+        if ($options === null) {
+            $options = defined('LIBXML_DTDLOAD') ? (LIBXML_DTDLOAD | LIBXML_DTDATTR) : 0;
+        }
+        self::$libXmlLoaderOptions = $options;
+
+        return $options;
+    }
+
+    /**
+     * Get default options for libxml loader.
+     * Defaults to LIBXML_DTDLOAD | LIBXML_DTDATTR when not set explicitly.
+     *
+     * @return int Default options for libxml loader
+     *
+     * @deprecated 3.5.0 no longer needed
+     */
+    public static function getLibXmlLoaderOptions(): int
+    {
+        return self::$libXmlLoaderOptions ?? (defined('LIBXML_DTDLOAD') ? (LIBXML_DTDLOAD | LIBXML_DTDATTR) : 0);
+    }
+
+    /**
      * Sets the implementation of cache that should be used for cell collection.
      */
     public static function setCache(?CacheInterface $cache): void
@@ -107,9 +141,7 @@ class Settings
     }
 
     /**
-     * Set the HTTP client implementation to be used for network request.
-     *
-     * @deprecated 5.4.0 No replacement.
+     * @deprecated 2.4.3 No replacement.
      *
      * @codeCoverageIgnore
      */
@@ -120,9 +152,7 @@ class Settings
     }
 
     /**
-     * Unset the HTTP client configuration.
-     *
-     * @deprecated 5.4.0 No replacement.
+     * @deprecated 2.4.3 No replacement.
      *
      * @codeCoverageIgnore
      */
@@ -133,9 +163,7 @@ class Settings
     }
 
     /**
-     * Get the HTTP client implementation to be used for network request.
-     *
-     * @deprecated 5.4.0 No replacement.
+     * @deprecated 2.4.3 No replacement.
      *
      * @codeCoverageIgnore
      */
@@ -145,9 +173,7 @@ class Settings
     }
 
     /**
-     * Get the HTTP request factory.
-     *
-     * @deprecated 5.4.0 No replacement.
+     * @deprecated 2.4.3 No replacement.
      *
      * @codeCoverageIgnore
      */

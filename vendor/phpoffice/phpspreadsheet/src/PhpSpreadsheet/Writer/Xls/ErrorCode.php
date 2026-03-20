@@ -19,6 +19,10 @@ class ErrorCode
 
     public static function error(string $errorCode): int
     {
-        return self::$errorCodeMap[$errorCode] ?? 0;
+        if (array_key_exists($errorCode, self::$errorCodeMap)) {
+            return self::$errorCodeMap[$errorCode];
+        }
+
+        return 0;
     }
 }

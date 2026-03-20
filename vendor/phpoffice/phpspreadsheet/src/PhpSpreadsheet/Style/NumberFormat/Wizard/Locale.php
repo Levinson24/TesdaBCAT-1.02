@@ -19,6 +19,10 @@ final class Locale
 
     public function __construct(?string $locale, int $style)
     {
+        if (class_exists(NumberFormatter::class) === false) {
+            throw new Exception();
+        }
+
         $formatterLocale = str_replace('-', '_', $locale ?? '');
         $this->formatter = new NumberFormatter($formatterLocale, $style);
         if ($this->formatter->getLocale() !== $formatterLocale) {

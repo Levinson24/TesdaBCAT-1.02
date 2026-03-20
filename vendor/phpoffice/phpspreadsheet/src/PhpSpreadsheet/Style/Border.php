@@ -83,10 +83,6 @@ class Border extends Supervisor
 
     /**
      * Build style array from subcomponents.
-     *
-     * @param mixed[] $array
-     *
-     * @return mixed[]
      */
     public function getStyleArray(array $array): array
     {
@@ -110,7 +106,7 @@ class Border extends Supervisor
      * );
      * </code>
      *
-     * @param mixed[] $styleArray Array containing style information
+     * @param array $styleArray Array containing style information
      *
      * @return $this
      */
@@ -119,13 +115,11 @@ class Border extends Supervisor
         if ($this->isSupervisor) {
             $this->getActiveSheet()->getStyle($this->getSelectedCells())->applyFromArray($this->getStyleArray($styleArray));
         } else {
-            /** @var array{borderStyle?: string, color?: array{rgb?: string, argb?: string}} $styleArray */
             if (isset($styleArray['borderStyle'])) {
                 $this->setBorderStyle($styleArray['borderStyle']);
             }
             if (isset($styleArray['color'])) {
-                $this->getColor()
-                    ->applyFromArray($styleArray['color']);
+                $this->getColor()->applyFromArray($styleArray['color']);
             }
         }
 
@@ -216,7 +210,6 @@ class Border extends Supervisor
         );
     }
 
-    /** @return mixed[] */
     protected function exportArray1(): array
     {
         $exportedArray = [];

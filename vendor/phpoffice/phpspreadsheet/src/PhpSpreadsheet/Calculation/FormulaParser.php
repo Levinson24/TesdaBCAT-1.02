@@ -463,8 +463,16 @@ class FormulaParser
         $tokenCount = count($tokens1);
         for ($i = 0; $i < $tokenCount; ++$i) {
             $token = $tokens1[$i];
-            $previousToken = $tokens1[$i - 1] ?? null;
-            $nextToken = $tokens1[$i + 1] ?? null;
+            if (isset($tokens1[$i - 1])) {
+                $previousToken = $tokens1[$i - 1];
+            } else {
+                $previousToken = null;
+            }
+            if (isset($tokens1[$i + 1])) {
+                $nextToken = $tokens1[$i + 1];
+            } else {
+                $nextToken = null;
+            }
 
             if ($token->getTokenType() != FormulaToken::TOKEN_TYPE_WHITESPACE) {
                 $tokens2[] = $token;
@@ -510,7 +518,11 @@ class FormulaParser
         $tokenCount = count($tokens2);
         for ($i = 0; $i < $tokenCount; ++$i) {
             $token = $tokens2[$i];
-            $previousToken = $tokens2[$i - 1] ?? null;
+            if (isset($tokens2[$i - 1])) {
+                $previousToken = $tokens2[$i - 1];
+            } else {
+                $previousToken = null;
+            }
 
             if ($token->getTokenType() == FormulaToken::TOKEN_TYPE_OPERATORINFIX && $token->getValue() == '-') {
                 if ($i == 0) {

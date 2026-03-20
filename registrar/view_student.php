@@ -151,6 +151,9 @@ require_once '../includes/header.php';
                         <i class="fas fa-award me-2"></i> Assign Honor
                     </button>
                     <?php endif; ?>
+                    <a href="../dept_head/manage_student_schedule.php?student_id=<?php echo $studentId; ?>" class="btn btn-dark rounded-pill shadow-sm">
+                        <i class="fas fa-calendar-check me-2"></i> Manage Enrollment
+                    </a>
                     <a href="curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn btn-primary rounded-pill shadow-sm" target="_blank">
                         <i class="fas fa-file-invoice me-2"></i> Official Evaluation
                     </a>
@@ -196,11 +199,11 @@ require_once '../includes/header.php';
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
-                        <thead class="bg-light">
+                        <thead class="gradient-navy text-white">
                             <tr>
-                                <th class="ps-4 border-0 small fw-bold text-uppercase">Subject / Code</th>
+                                <th class="ps-4 border-0 small fw-bold text-uppercase text-warning">Subject / Code</th>
                                 <th class="border-0 small fw-bold text-uppercase">Section / Room</th>
-                                <th class="border-0 small fw-bold text-uppercase">Assigned Prof</th>
+                                <th class="border-0 small fw-bold text-uppercase text-end pe-4">Assigned Prof</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -216,8 +219,8 @@ require_once '../includes/header.php';
                                             <div class="small fw-bold text-dark"><?php echo htmlspecialchars($e['schedule'] ?? 'TBA'); ?></div>
                                             <div class="small text-muted" style="font-size: 0.7rem;"><i class="fas fa-map-marker-alt me-1"></i> <?php echo htmlspecialchars($e['room'] ?? 'TBA'); ?></div>
                                         </td>
-                                        <td>
-                                            <div class="small fw-bold text-dark"><?php echo htmlspecialchars($s['instructor_name'] ?? ''); ?></div>
+                                        <td class="text-end pe-4">
+                                            <div class="small fw-bold text-dark"><?php echo htmlspecialchars($e['instructor_name'] ?? ''); ?></div>
                                             <div class="text-muted" style="font-size: 0.65rem;"><?php echo htmlspecialchars(($e['semester'] ?? '') . ' ' . ($e['school_year'] ?? '')); ?></div>
                                         </td>
                                     </tr>
@@ -268,10 +271,10 @@ endif; ?>
 <!-- Assign Honor Modal -->
 <div class="modal fade" id="assignHonorModal" tabindex="-1" aria-labelledby="assignHonorModalLabel" aria-hidden="true">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="assignHonorModalLabel"><i class="fas fa-award me-2"></i> Assign Academic Honor</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header gradient-navy text-white border-0 py-3">
+                <h5 class="modal-title fw-bold" id="assignHonorModalLabel"><i class="fas fa-award me-2 text-warning"></i> Assign Academic Honor</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST">
                 <?php csrfField(); ?>

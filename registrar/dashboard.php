@@ -277,16 +277,16 @@ endif; ?>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0 table-mobile-card">
-                        <thead class="bg-light">
+                        <thead class="gradient-navy text-white">
                             <tr>
-                                <th class="ps-4">Student Identity</th>
-                                <th>Academic Subject</th>
-                                <th>Cycle Info</th>
-                                <th>Faculty</th>
-                                <th>Mid/Final</th>
-                                <th>Grade</th>
-                                <th>Timeline</th>
-                                <th class="text-end pe-4">Actions</th>
+                                <th class="ps-4 text-warning border-0 small text-uppercase">Student Identity</th>
+                                <th class="border-0 small text-uppercase">Academic Subject</th>
+                                <th class="border-0 small text-uppercase">Cycle Info</th>
+                                <th class="border-0 small text-uppercase">Faculty</th>
+                                <th class="border-0 small text-uppercase">Mid/Final</th>
+                                <th class="border-0 small text-uppercase">Grade</th>
+                                <th class="border-0 small text-uppercase">Timeline</th>
+                                <th class="text-end pe-4 border-0 small text-uppercase">Actions</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -51,7 +51,8 @@ while ($activity = $recentActivities->fetch_assoc()) {
         'badgeClass' => $badgeClass,
         'icon' => $icon,
         'details' => $activity['new_values'] ?? '-',
-        'datetime' => formatDateTime($activity['created_at'])
+        'datetime' => formatDateTime($activity['created_at']),
+        'ip_address' => $activity['ip_address'] ?? ''
     ];
 }
 

@@ -37,6 +37,10 @@ class FillPattern
      */
     public static function lookup(int $index): string
     {
-        return self::$fillPatternMap[$index] ?? Fill::FILL_NONE;
+        if (isset(self::$fillPatternMap[$index])) {
+            return self::$fillPatternMap[$index];
+        }
+
+        return Fill::FILL_NONE;
     }
 }

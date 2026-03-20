@@ -119,7 +119,7 @@ $actionTypes = $conn->query("SELECT DISTINCT action FROM audit_logs ORDER BY act
                     <tr>
                         <td class="ps-3" data-label="Timestamp">
                             <div class="fw-semibold small"><?php echo formatDateTime($log['created_at']); ?></div>
-                            <div class="text-muted" style="font-size:0.7rem;"><?php echo htmlspecialchars($log['ip_address'] ?? ''); ?></div>
+                            <div class="text-muted" style="font-size:0.7rem;"><i class="fas fa-desktop me-1" style="font-size:0.6rem;"></i><?php echo htmlspecialchars($log['ip_address'] ?? '0.0.0.0'); ?></div>
                         </td>
                         <td data-label="User">
                             <div class="d-flex align-items-center">
@@ -138,7 +138,8 @@ $actionTypes = $conn->query("SELECT DISTINCT action FROM audit_logs ORDER BY act
                             $bc = 'bg-info bg-opacity-10 text-info';
                             if (stripos($ac, 'create') !== false || stripos($ac, 'insert') !== false || stripos($ac, 'enroll') !== false) $bc = 'bg-success bg-opacity-10 text-success';
                             elseif (stripos($ac, 'delete') !== false) $bc = 'bg-danger bg-opacity-10 text-danger';
-                            elseif (stripos($ac, 'update') !== false || stripos($ac, 'reset') !== false) $bc = 'bg-warning bg-opacity-10 text-warning';
+                            elseif (stripos($ac, 'update') !== false) $bc = 'bg-warning bg-opacity-10 text-warning';
+                            elseif (stripos($ac, 'PASSWORD_RESET') !== false) $bc = 'bg-danger bg-opacity-75 text-white';
                             elseif (stripos($ac, 'login') !== false) $bc = 'bg-primary bg-opacity-10 text-primary';
                             elseif (stripos($ac, 'lock') !== false || stripos($ac, 'security') !== false) $bc = 'bg-danger bg-opacity-25 text-danger';
                             ?>

@@ -39,6 +39,9 @@ abstract class GammaBase
         while ((abs($dx) > Functions::PRECISION) && (++$i <= self::MAX_ITERATIONS)) {
             // Apply Newton-Raphson step
             $result = self::calculateDistribution($x, $alpha, $beta, true);
+            if (!is_float($result)) {
+                return ExcelError::NA();
+            }
             $error = $result - $probability;
 
             if ($error == 0.0) {
@@ -51,6 +54,9 @@ abstract class GammaBase
 
             $pdf = self::calculateDistribution($x, $alpha, $beta, false);
             // Avoid division by zero
+            if (!is_float($pdf)) {
+                return ExcelError::NA();
+            }
             if ($pdf !== 0.0) {
                 $dx = $error / $pdf;
                 $xNew = $x - $dx;
@@ -91,16 +97,6 @@ abstract class GammaBase
         return $x ** $a * exp(0 - $x) * $summer;
     }
 
-    private const GAMMA_VALUE_P0 = 1.000000000190015;
-    private const GAMMA_VALUE_P = [
-        1 => 76.18009172947146,
-        2 => -86.50532032941677,
-        3 => 24.01409824083091,
-        4 => -1.231739572450155,
-        5 => 1.208650973866179e-3,
-        6 => -5.395239384953e-6,
-    ];
-
     //
     //    Implementation of the Gamma function
     //
@@ -110,13 +106,23 @@ abstract class GammaBase
             return 0;
         }
 
+        static $p0 = 1.000000000190015;
+        static $p = [
+            1 => 76.18009172947146,
+            2 => -86.50532032941677,
+            3 => 24.01409824083091,
+            4 => -1.231739572450155,
+            5 => 1.208650973866179e-3,
+            6 => -5.395239384953e-6,
+        ];
+
         $y = $x = $value;
         $tmp = $x + 5.5;
         $tmp -= ($x + 0.5) * log($tmp);
 
-        $summer = self::GAMMA_VALUE_P0;
+        $summer = $p0;
         for ($j = 1; $j <= 6; ++$j) {
-            $summer += (self::GAMMA_VALUE_P[$j] / ++$y);
+            $summer += ($p[$j] / ++$y);
         }
 
         return exp(0 - $tmp + log(self::SQRT2PI * $summer / $x));

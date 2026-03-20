@@ -100,7 +100,7 @@ abstract class BaseWriter implements IWriter
      */
     public function openFileHandle($filename): void
     {
-        if (!is_string($filename)) {
+        if (is_resource($filename)) {
             $this->fileHandle = $filename;
             $this->shouldCloseFile = false;
 
@@ -123,18 +123,13 @@ abstract class BaseWriter implements IWriter
         $this->shouldCloseFile = true;
     }
 
-    protected function tryClose(): bool
-    {
-        return fclose($this->fileHandle);
-    }
-
     /**
      * Close file handle only if we opened it ourselves.
      */
     protected function maybeCloseFileHandle(): void
     {
         if ($this->shouldCloseFile) {
-            if (!$this->tryClose()) {
+            if (!fclose($this->fileHandle)) {
                 throw new Exception('Could not close file after writing.');
             }
         }

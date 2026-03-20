@@ -1,6 +1,6 @@
 <?php
 /**
- * Forgot Password — Send Reset Link
+ * Forgot Password — User Identification
  * TESDA-BCAT Grade Management System
  */
 
@@ -24,54 +24,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $message = 'Invalid request. Please refresh and try again.';
         $messageType = 'danger';
     } else {
-        $email = sanitizeInput($_POST['email'] ?? '');
+        $identifier = sanitizeInput($_POST['identifier'] ?? '');
 
-        if (!validateEmail($email)) {
-            $message = 'Please enter a valid email address.';
+        if (empty($identifier)) {
+            $message = 'Please enter your email or username.';
             $messageType = 'danger';
         } else {
             $conn = getDBConnection();
-            $stmt = $conn->prepare("SELECT user_id, username FROM users WHERE email = ? AND status = 'active'");
-            $stmt->bind_param("s", $email);
+            $stmt = $conn->prepare("SELECT user_id, username, email FROM users WHERE (email = ? OR username = ?) AND status = 'active'");
+            $stmt->bind_param("ss", $identifier, $identifier);
             $stmt->execute();
             $result = $stmt->get_result();
             $stmt->close();
 
-            // Always show success message (prevent email enumeration)
-            $message = "If that email address is registered, you will receive a password reset link shortly. "
-                     . "Please check your inbox (and spam folder).";
-            $messageType = 'success';
-
+            // Notify Administration
             if ($result->num_rows === 1) {
                 $user = $result->fetch_assoc();
-                $token = bin2hex(random_bytes(32));
-                $expires = date('Y-m-d H:i:s', time() + 3600); // 1 hour
+                
+                // Set the reset_requested flag
+                $updStmt = $conn->prepare("UPDATE users SET reset_requested = 1 WHERE user_id = ?");
+                $updStmt->bind_param("i", $user['user_id']);
+                $updStmt->execute();
+                $updStmt->close();
 
-                // Delete any old tokens for this user
-                $delStmt = $conn->prepare("DELETE FROM password_reset_tokens WHERE user_id = ?");
-                $delStmt->bind_param("i", $user['user_id']);
-                $delStmt->execute();
-                $delStmt->close();
-
-                // Insert new token
-                $insStmt = $conn->prepare("INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)");
-                $insStmt->bind_param("iss", $user['user_id'], $token, $expires);
-                $insStmt->execute();
-                $insStmt->close();
-
-                // Build reset URL
-                $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
-                $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-                $resetUrl = $protocol . "://" . $host . "/TesdaBCAT-1.02/reset_password.php?token=" . urlencode($token);
-
-                // Try to send email (if mailer is available)
-                if (file_exists(__DIR__ . '/includes/mailer.php')) {
-                    require_once __DIR__ . '/includes/mailer.php';
-                    sendPasswordResetEmail($user['username'], $email, $resetUrl);
-                }
-
+                // Log the request
                 logAudit($user['user_id'], 'PASSWORD_RESET_REQUESTED', 'users', $user['user_id'], null,
-                    "Reset token generated for {$email}");
+                    "User requested a password reset. (Account: " . ($user['email'] ? $user['email'] : $user['username']) . ")");
+
+                $message = "Your password reset request has been logged with the <strong>Administrator</strong>. "
+                         . "Please visit the Administration Office in person to have your password manually reset.";
+                $messageType = 'success';
+            } else {
+                // Same message even if not found to prevent enumeration
+                $message = "Your password reset request has been logged with the <strong>Administrator</strong>. "
+                         . "Please visit the Administration Office in person to have your password manually reset.";
+                $messageType = 'success';
             }
         }
     }
@@ -89,22 +76,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="icon" href="BCAT logo 2024.png" type="image/png">
     <style>
-        :root { --primary-indigo: #1a3a5c; --secondary-indigo: #0f2a47; }
+        :root { --primary-indigo: #0038A8; --secondary-indigo: #002366; }
         body {
-            font-family: 'Inter', sans-serif;
-            background-image: linear-gradient(rgba(0,0,0,0.45), rgba(0,0,0,0.45)), url('bcat updated.png');
-            background-size: cover; background-position: center; background-attachment: fixed;
-            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #0038A8 0%, #002366 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Outfit', sans-serif;
+            padding: 20px;
         }
         .fp-card {
-            background: rgba(255,255,255,0.92); backdrop-filter: blur(20px);
-            border-radius: 2rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.3);
-            overflow: hidden; max-width: 460px; width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 56, 168, 0.5);
+            width: 100%;
+            max-width: 450px;
+            padding: 3rem 2.5rem;
+            position: relative;
+            overflow: hidden;
             animation: slideUp 0.5s ease-out;
         }
         @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
         .fp-header {
-            background: linear-gradient(135deg, var(--primary-indigo), var(--secondary-indigo));
+            background: linear-gradient(135deg, #0038A8, #002366);
             color: white; padding: 2.5rem 2rem; text-align: center;
         }
         .fp-header h1 { font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; margin: 0.5rem 0 0.25rem; }
@@ -119,10 +116,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: white; border: none; border-radius: 0.875rem; padding: 0.875rem;
             font-weight: 700; width: 100%; transition: all 0.3s; margin-top: 0.5rem;
         }
-        .btn-reset:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(26,58,92,0.4); color: white; }
+        .btn-reset:hover { box-shadow: 0 10px 25px rgba(0, 56, 168, 0.4); color: white; }
         .back-link { display: block; text-align: center; margin-top: 1.25rem; color: var(--primary-indigo);
                      text-decoration: none; font-weight: 500; font-size: 0.875rem; }
         .back-link:hover { text-decoration: underline; }
+
+        /* ──── ELEGANT SCROLLBARS ──── */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.7);
+        }
     </style>
 </head>
 <body>
@@ -131,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="fp-header">
             <div class="fp-icon"><i class="fas fa-key"></i></div>
             <h1>Forgot Password</h1>
-            <p>Enter your registered email address to receive a reset link</p>
+            <p>Enter your email to request a reset code from the administration</p>
         </div>
         <div class="fp-body">
             <?php if ($message): ?>
@@ -144,21 +159,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form method="POST" action="">
                 <?php csrfField(); ?>
                 <div class="mb-3">
-                    <label for="email" class="form-label fw-600 text-muted" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">
-                        Email Address
+                    <label for="identifier" class="form-label fw-600 text-muted" style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;">
+                        Email Address or Username
                     </label>
-                    <input type="email" class="form-control" id="email" name="email"
-                           placeholder="your@email.com" required autofocus>
+                    <input type="text" class="form-control" id="identifier" name="identifier"
+                           placeholder="Enter your email or username" required autofocus>
                 </div>
                 <button type="submit" class="btn btn-reset">
-                    <i class="fas fa-paper-plane me-2"></i>Send Reset Link
+                    <i class="fas fa-paper-plane me-2"></i>Get Reset Code
                 </button>
             </form>
             <?php endif; ?>
 
-            <a href="index.php" class="back-link">
-                <i class="fas fa-arrow-left me-1"></i> Back to Login
-            </a>
+            <div class="d-flex align-items-center justify-content-center gap-3">
+                <a href="index.php" class="back-link mt-0">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Login
+                </a>
+                <span class="text-muted opacity-25 mt-1">|</span>
+                <a href="verify.php" class="back-link mt-0 fw-700">
+                    <i class="fas fa-check-circle me-1"></i> Verify Document
+                </a>
+            </div>
         </div>
     </div>
 </div>

@@ -11,7 +11,6 @@ use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Exception;
 use PhpOffice\PhpSpreadsheet\Exception as PhpSpreadsheetException;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
-use Throwable;
 
 class Date
 {
@@ -173,7 +172,10 @@ class Date
             throw new Exception("Invalid string $value supplied for datatype Date");
         }
 
-        $newValue = self::dateTimeToExcel($date);
+        $newValue = self::PHPToExcel($date);
+        if ($newValue === false) {
+            throw new Exception("Invalid string $value supplied for datatype Date");
+        }
 
         if (preg_match('/^\s*\d?\d:\d\d(:\d\d([.]\d+)?)?\s*(am|pm)?\s*$/i', $value) == 1) {
             $newValue = fmod($newValue, 1.0);
@@ -212,13 +214,6 @@ class Date
             $baseDate = new DateTime('1899-12-30', $timeZone);
         }
 
-        if (is_int($excelTimestamp)) {
-            if ($excelTimestamp >= 0) {
-                return $baseDate->modify("+ $excelTimestamp days");
-            }
-
-            return $baseDate->modify("$excelTimestamp days");
-        }
         $days = floor($excelTimestamp);
         $partDay = $excelTimestamp - $days;
         $hms = 86400 * $partDay;
@@ -372,23 +367,15 @@ class Date
             $selected = $worksheet->getSelectedCells();
 
             try {
-                if ($value === null) {
-                    $value = Functions::flattenSingleValue(
-                        $cell->getCalculatedValue()
-                    );
-                }
-                if (is_numeric($value)) {
-                    $result = self::isDateTimeFormat(
+                $result = is_numeric($value ?? $cell->getCalculatedValue())
+                    && self::isDateTimeFormat(
                         $worksheet->getStyle(
                             $cell->getCoordinate()
                         )->getNumberFormat(),
                         $dateWithoutTimeOkay
                     );
-                    /** @var float|int $value */
-                    self::excelToDateTimeObject($value);
-                }
-            } catch (Throwable) {
-                $result = false;
+            } catch (Exception) {
+                // Result is already false, so no need to actually do anything here
             }
             $worksheet->setSelectedCells($selected);
             $spreadsheet->setActiveSheetIndex($index);
@@ -477,7 +464,7 @@ class Date
         if (strlen($dateValue) < 2) {
             return false;
         }
-        if (!preg_match('/^(\d{1,4}[ \.\/\-][A-Z]{3,9}([ \.\/\-]\d{1,4})?|[A-Z]{3,9}[ \.\/\-]\d{1,4}([ \.\/\-]\d{1,4})?|\d{1,4}[ \.\/\-]\d{1,4}([ \.\/\-]\d{1,4})?)( \d{1,2}:\d{1,2}(:\d{1,2}([.]\d+)?)?)?$/iu', $dateValue)) {
+        if (!preg_match('/^(\d{1,4}[ \.\/\-][A-Z]{3,9}([ \.\/\-]\d{1,4})?|[A-Z]{3,9}[ \.\/\-]\d{1,4}([ \.\/\-]\d{1,4})?|\d{1,4}[ \.\/\-]\d{1,4}([ \.\/\-]\d{1,4})?)( \d{1,2}:\d{1,2}(:\d{1,2})?)?$/iu', $dateValue)) {
             return false;
         }
 
@@ -550,16 +537,11 @@ class Date
         return $dtobj->format($format);
     }
 
-    /**
-     * Round the given DateTime object to seconds.
-     */
     public static function roundMicroseconds(DateTime $dti): void
     {
         $microseconds = (int) $dti->format('u');
-        $rounded = (int) round($microseconds, -6);
-        $modify = $rounded - $microseconds;
-        if ($modify !== 0) {
-            $dti->modify(($modify > 0 ? '+' : '') . $modify . ' microseconds');
+        if ($microseconds >= 500000) {
+            $dti->modify('+1 second');
         }
     }
 }

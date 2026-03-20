@@ -265,7 +265,7 @@ function buildHref($extra = [])
     border-radius: 1rem;
     padding: 1.1rem 1.4rem;
     border-left: 4px solid;
-    box-shadow: 0 2px 12px rgba(26,58,92,0.08);
+    box-shadow: 0 2px 12px rgba(0, 56, 168, 0.08);
     display: flex;
     align-items: center;
     gap: 1rem;
@@ -281,7 +281,7 @@ function buildHref($extra = [])
 
 /* ── Table ──────────────────────────────────────────────── */
 .grade-table thead th {
-    background: #1a3a5c;
+    background: #0038A8;
     color: #fff;
     font-weight: 600;
     font-size: 0.82rem;
@@ -298,14 +298,25 @@ function buildHref($extra = [])
 .pass-bar { display: flex; align-items: center; gap: 8px; min-width: 120px; }
 .pass-bar .progress { flex: 1; height: 7px; border-radius: 4px; }
 
-/* ── Filter card ────────────────────────────────────────── */
-.filter-card {
-    background: #f8fafd;
-    border: 1px solid #dee6f0;
-    border-radius: 0.85rem;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
+/* ── Premium Action Buttons ───────────────────────── */
+.btn-premium-edit, .btn-premium-print, .btn-premium-delete {
+    width: 32px; height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none !important;
 }
+.btn-premium-print { background-color: #f0f9ff; color: #0369a1 !important; }
+.btn-premium-print:hover { background-color: #0369a1; color: #fff !important; box-shadow: 0 4px 6px rgba(3,105,161,0.2); }
+.btn-premium-edit { background-color: #eff6ff; color: #2563eb !important; }
+.btn-premium-edit:hover { background-color: #2563eb; color: #fff !important; box-shadow: 0 4px 6px rgba(37,99,235,0.2); }
+.btn-premium-delete { background-color: #fef2f2; color: #ef4444 !important; }
+.btn-premium-delete:hover { background-color: #ef4444; color: #fff !important; box-shadow: 0 4px 6px rgba(239,68,68,0.2); }
 
 /* ══════════════ PRINT STYLES ══════════════════════════════ */
 @media print {
@@ -319,11 +330,11 @@ function buildHref($extra = [])
     .print-header {
         display: block !important;
         text-align: center;
-        border-bottom: 2px solid #1a3a5c;
+        border-bottom: 2px solid #0038A8;
         padding-bottom: 12px;
         margin-bottom: 18px;
     }
-    .print-header h2 { color: #1a3a5c; font-size: 16pt; margin: 4px 0; }
+    .print-header h2 { color: #0038A8; font-size: 16pt; margin: 4px 0; }
     .print-header p  { margin: 2px 0; font-size: 9pt; color: #555; }
 
 
@@ -334,14 +345,14 @@ function buildHref($extra = [])
 
     .grade-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     .grade-table thead th {
-        background: #1a3a5c !important;
+        background: #0038A8 !important;
         color: #fff !important;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
         font-size: 8.5pt;
         padding: 8px 6px;
         text-align: left;
-        border: 1px solid #1a3a5c;
+        border: 1px solid #0038A8;
     }
     .grade-table tbody td {
         font-size: 8.5pt;
@@ -400,7 +411,7 @@ function buildHref($extra = [])
 <div class="responsive-grid mb-4 stat-row">
     <?php
 $stats = [
-    ['label' => 'Total Records', 'value' => $totalGrades, 'color' => '#1a3a5c', 'bg' => '#e8f0fb', 'icon' => 'fa-list-alt'],
+    ['label' => 'Total Records', 'value' => $totalGrades, 'color' => '#0038A8', 'bg' => '#e8f0fb', 'icon' => 'fa-list-alt'],
     ['label' => 'Graded', 'value' => $approvedCount, 'color' => '#198754', 'bg' => '#e6f4ed', 'icon' => 'fa-check-circle'],
     ['label' => 'Passed', 'value' => $passedCount, 'color' => '#0d6efd', 'bg' => '#e7f1ff', 'icon' => 'fa-graduation-cap'],
     ['label' => 'Failed', 'value' => $failedCount, 'color' => '#dc3545', 'bg' => '#fdecea', 'icon' => 'fa-times-circle'],
@@ -425,7 +436,7 @@ endforeach; ?>
 
 <!-- ══════════════════════════════════════════ ACADEMIC FREEDOM NOTICE -->
 <div class="alert d-flex align-items-center mb-3 no-print"
-     style="background:#e8f0fb;border:1px solid #b8d0ef;color:#1a3a5c;border-radius:.85rem;">
+     style="background:#e8f0fb;border:1px solid #b8d0ef;color:#0038A8;border-radius:.85rem;">
     <i class="fas fa-shield-alt me-2 fs-5"></i>
     <div>
         <strong>Academic Freedom Policy:</strong>
@@ -436,17 +447,17 @@ endforeach; ?>
 <!-- ══════════════════════════════════════════ MAIN CARD -->
 <div class="card shadow-sm border-0">
     <!-- Card Header with title and buttons -->
-    <div class="card-header bg-white border-bottom-0 pt-4 pb-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-3 no-print">
+    <div class="card-header gradient-navy p-4 d-flex justify-content-between align-items-center flex-wrap gap-3 rounded-top">
         <div>
-            <h5 class="mb-0 text-primary fw-bold"><i class="fas fa-folder-open me-2"></i> Grade Records Management</h5>
-            <p class="text-muted mb-0 small mt-1">View, filter, and export student grades and course summaries.</p>
+            <h5 class="mb-0 text-white fw-bold"><i class="fas fa-folder-open me-2 text-warning"></i> Grade Records Management</h5>
+            <p class="text-white opacity-75 mb-0 small mt-1">View, filter, and export student grades and course summaries.</p>
         </div>
         <div class="d-flex gap-2">
             <a href="<?php echo buildHref(['export' => 'csv']); ?>"
-               class="btn btn-sm btn-outline-primary fw-semibold">
+               class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold border-0">
                 <i class="fas fa-file-csv me-1"></i> Export CSV
             </a>
-            <button onclick="window.print()" class="btn btn-sm btn-primary fw-semibold">
+            <button onclick="window.print()" class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary">
                 <i class="fas fa-print me-1"></i> Print
             </button>
         </div>
@@ -521,7 +532,7 @@ endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-1">
-                    <button type="submit" class="btn btn-sm btn-primary w-100" style="background:#1a3a5c;border:none;">
+                    <button type="submit" class="btn btn-sm btn-primary w-100" style="background:#0038A8;border:none;">
                         <i class="fas fa-filter"></i> Filter
                     </button>
                 </div>
@@ -631,25 +642,25 @@ endforeach; ?>
                             </td>
                             <td data-label="Submitted"><small><?php echo $g['submitted_at'] ? formatDateTime($g['submitted_at']) : '—'; ?></small></td>
 
-                             <td class="text-center no-print">
-                                <div class="btn-group">
-                                    <button class="btn btn-sm btn-info" 
+                             <td class="no-print text-center pe-3">
+                                <div class="d-flex justify-content-center gap-2">
+                                    <button class="btn-premium-edit" 
                                             onclick='openEditGradeModal(<?php echo htmlspecialchars(json_encode($g), ENT_QUOTES, 'UTF-8'); ?>)' 
                                             title="Edit Grade Information">
                                         <i class="fas fa-edit"></i>
                                     </button>
                                     <a href="print_grade_slip.php?student_id=<?php echo urlencode($g['student_id'] ?? ''); ?>&semester=<?php echo urlencode($g['semester'] ?? ''); ?>&school_year=<?php echo urlencode($g['school_year'] ?? ''); ?>" 
                                        target="_blank" 
-                                       class="btn btn-sm text-primary border border-primary bg-white" 
+                                       class="btn-premium-print" 
                                        title="Print Grade Slip">
                                         <i class="fas fa-receipt"></i>
                                     </a>
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this grade record?')">
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this grade record?')">
                                         <?php csrfField(); ?>
                                         <input type="hidden" name="action" value="delete_grade">
                                         <input type="hidden" name="grade_id" value="<?php echo $g['grade_id']; ?>">
-                                        <button type="submit" class="btn btn-sm text-danger border border-danger bg-white" title="Delete Grade">
-                                            <i class="fas fa-trash"></i>
+                                        <button type="submit" class="btn-premium-delete" title="Delete Grade">
+                                            <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
                                 </div>
@@ -806,10 +817,10 @@ endif; ?>
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="compliance">
             <input type="hidden" name="grade_id" id="comp_grade_id">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title"><i class="fas fa-file-signature me-2"></i> Process Compliance</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-file-signature me-2 text-warning"></i> Process Compliance</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-warning py-2 mb-3">
@@ -828,9 +839,11 @@ endif; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info px-4">Save and Approve</button>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info rounded-pill px-4 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> Save and Approve
+                    </button>
                 </div>
             </div>
         </form>
@@ -844,10 +857,10 @@ endif; ?>
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="update_grade">
             <input type="hidden" name="grade_id" id="edit_grade_id">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title"><i class="fas fa-edit me-2"></i> Edit Grade Record</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2 text-warning"></i> Edit Grade Record</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info py-2 mb-3 small">
@@ -874,9 +887,11 @@ endif; ?>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Save Changes
+                    </button>
                 </div>
             </div>
         </form>

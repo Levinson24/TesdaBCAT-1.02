@@ -106,8 +106,6 @@ class Chart
 
     private bool $noFill = false;
 
-    private bool $noBorder = false;
-
     private bool $roundedCorners = false;
 
     private GridLines $borderLines;
@@ -128,7 +126,7 @@ class Chart
      * Create a new Chart.
      * majorGridlines and minorGridlines are deprecated, moved to Axis.
      */
-    public function __construct(string $name, ?Title $title = null, ?Legend $legend = null, ?PlotArea $plotArea = null, bool $plotVisibleOnly = true, string $displayBlanksAs = DataSeries::DEFAULT_EMPTY_AS, ?Title $xAxisLabel = null, ?Title $yAxisLabel = null, ?Axis $xAxis = null, ?Axis $yAxis = null, ?GridLines $majorGridlines = null, ?GridLines $minorGridlines = null)
+    public function __construct(string $name, ?Title $title = null, ?Legend $legend = null, ?PlotArea $plotArea = null, bool $plotVisibleOnly = true, string $displayBlanksAs = DataSeries::EMPTY_AS_GAP, ?Title $xAxisLabel = null, ?Title $yAxisLabel = null, ?Axis $xAxis = null, ?Axis $yAxis = null, ?GridLines $majorGridlines = null, ?GridLines $minorGridlines = null)
     {
         $this->name = $name;
         $this->title = $title;
@@ -137,7 +135,7 @@ class Chart
         $this->yAxisLabel = $yAxisLabel;
         $this->plotArea = $plotArea;
         $this->plotVisibleOnly = $plotVisibleOnly;
-        $this->setDisplayBlanksAs($displayBlanksAs);
+        $this->displayBlanksAs = $displayBlanksAs;
         $this->xAxis = $xAxis ?? new Axis();
         $this->yAxis = $yAxis ?? new Axis();
         if ($majorGridlines !== null) {
@@ -318,8 +316,7 @@ class Chart
      */
     public function setDisplayBlanksAs(string $displayBlanksAs): static
     {
-        $displayBlanksAs = strtolower($displayBlanksAs);
-        $this->displayBlanksAs = in_array($displayBlanksAs, DataSeries::VALID_EMPTY_AS, true) ? $displayBlanksAs : DataSeries::DEFAULT_EMPTY_AS;
+        $this->displayBlanksAs = $displayBlanksAs;
 
         return $this;
     }
@@ -490,7 +487,7 @@ class Chart
     /**
      * Get the bottom right position of the chart.
      *
-     * @return array{cell: string, xOffset: int, yOffset:int} an associative array containing the cell address, X-Offset and Y-Offset from the top left of that cell
+     * @return array an associative array containing the cell address, X-Offset and Y-Offset from the top left of that cell
      */
     public function getBottomRightPosition(): array
     {
@@ -695,18 +692,6 @@ class Chart
     public function setNoFill(bool $noFill): self
     {
         $this->noFill = $noFill;
-
-        return $this;
-    }
-
-    public function getNoBorder(): bool
-    {
-        return $this->noBorder;
-    }
-
-    public function setNoBorder(bool $noBorder): self
-    {
-        $this->noBorder = $noBorder;
 
         return $this;
     }

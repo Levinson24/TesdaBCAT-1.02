@@ -22,7 +22,7 @@ class ChartColor
     private ?int $brightness = null;
 
     /**
-     * @param array{value: ?string, alpha: null|int|string, brightness?: null|int|string, type: ?string}|string  $value
+     * @param string|string[] $value
      */
     public function __construct($value = '', ?int $alpha = null, ?string $type = null, ?int $brightness = null)
     {
@@ -114,7 +114,6 @@ class ChartColor
         return $this;
     }
 
-    /** @param array{value: ?string, alpha: null|int|string, brightness?: null|int|string, type: ?string}  $color */
     public function setColorPropertiesArray(array $color): self
     {
         return $this->setColorProperties(

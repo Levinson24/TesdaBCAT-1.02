@@ -6,7 +6,6 @@ use PhpOffice\PhpSpreadsheet\Calculation\ArrayEnabled;
 use PhpOffice\PhpSpreadsheet\Calculation\Information\ExcelError;
 use PhpOffice\PhpSpreadsheet\Cell\AddressHelper;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 
 class Address
 {
@@ -45,7 +44,7 @@ class Address
      * @param mixed $sheetName Optional Name of worksheet to use
      *                      Or can be an array of values
      *
-     * @return mixed[]|string If an array of values is passed as the $testValue argument, then the returned result will also be
+     * @return array|string If an array of values is passed as the $testValue argument, then the returned result will also be
      *            an array with the same dimensions
      */
     public static function cell(mixed $row, mixed $column, mixed $relativity = 1, mixed $referenceStyle = true, mixed $sheetName = ''): array|string
@@ -64,16 +63,14 @@ class Address
             );
         }
 
-        $relativity = ($relativity === null) ? 1 : (int) StringHelper::convertToString($relativity);
+        $relativity = $relativity ?? 1;
         $referenceStyle = $referenceStyle ?? true;
-        $row = (int) StringHelper::convertToString($row);
-        $column = (int) StringHelper::convertToString($column);
 
         if (($row < 1) || ($column < 1)) {
             return ExcelError::VALUE();
         }
 
-        $sheetName = self::sheetName(StringHelper::convertToString($sheetName));
+        $sheetName = self::sheetName($sheetName);
 
         if (is_int($referenceStyle)) {
             $referenceStyle = (bool) $referenceStyle;

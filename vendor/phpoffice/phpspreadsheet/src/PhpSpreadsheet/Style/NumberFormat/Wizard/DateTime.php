@@ -5,7 +5,7 @@ namespace PhpOffice\PhpSpreadsheet\Style\NumberFormat\Wizard;
 class DateTime extends DateTimeWizard
 {
     /**
-     * @var array<?string>
+     * @var string[]
      */
     protected array $separators;
 

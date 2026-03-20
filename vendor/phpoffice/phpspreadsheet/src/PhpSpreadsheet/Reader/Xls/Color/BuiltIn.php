@@ -21,8 +21,6 @@ class BuiltIn
      * Map built-in color to RGB value.
      *
      * @param int $color Indexed color
-     *
-     * @return array{rgb: string}
      */
     public static function lookup(int $color): array
     {

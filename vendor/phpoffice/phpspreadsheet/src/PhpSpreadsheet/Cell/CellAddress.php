@@ -48,7 +48,6 @@ class CellAddress implements Stringable
         return new self(Coordinate::stringFromColumnIndex($columnId) . $rowId, $worksheet);
     }
 
-    /** @param array<int, int> $array */
     public static function fromColumnRowArray(array $array, ?Worksheet $worksheet = null): self
     {
         [$columnId, $rowId] = $array;

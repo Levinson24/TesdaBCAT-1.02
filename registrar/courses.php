@@ -135,6 +135,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $pageTitle = 'Manage Courses';
 require_once '../includes/header.php';
 
+// === Premium Styles ===
+?>
+<style>
+    .premium-card {
+        border-radius: 1rem;
+    }
+    .bg-dark-navy {
+        background-color: #0f172a !important;
+    }
+    .courses-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    .courses-table tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #334155;
+        font-size: 0.85rem;
+    }
+    .subject-icon-box {
+        width: 32px;
+        height: 32px;
+        background: #f1f5f9;
+        color: #6366f1;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        margin-right: 12px;
+        flex-shrink: 0;
+        border: 1px solid #e2e8f0;
+        font-size: 0.8rem;
+    }
+    .stat-pill {
+        font-weight: 700;
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .stat-blue { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+    
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 2rem;
+    }
+    .status-pill-active { background-color: #ecfdf5; color: #065f46; border: 1px solid #d1fae5; }
+    .status-pill-inactive { background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
+    
+    .btn-action-edit { color: #2563eb; }
+    .btn-action-edit:hover { background: #2563eb; color: white; }
+    .btn-action-delete { color: #dc2626; }
+    .btn-action-delete:hover { background: #dc2626; color: white; }
+
+    /* Premium Action Buttons */
+    .btn-premium-edit, .btn-premium-delete {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+    .btn-premium-edit {
+        background-color: #eff6ff;
+        color: #2563eb !important;
+    }
+    .btn-premium-edit:hover {
+        background-color: #2563eb;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+    }
+    .btn-premium-delete {
+        background-color: #fef2f2;
+        color: #ef4444 !important;
+    }
+    .btn-premium-delete:hover {
+        background-color: #ef4444;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);
+    }
+</style>
+<?php
+// === Data Fetching (Re-inserting what was accidentally removed) ===
 $progWhere = $isStaff ? " AND p.dept_id = $deptId" : "";
 $prog_res = $conn->query("SELECT p.*, d.title_diploma_program FROM programs p JOIN departments d ON p.dept_id = d.dept_id WHERE p.status = 'active' $progWhere ORDER BY p.program_name ASC");
 $programs_list = [];
@@ -152,56 +254,102 @@ $courses = $conn->query("
 ");
 ?>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-book"></i> Course Management</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Add Course
+<div class="card premium-card shadow-sm border-0">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-book-bookmark me-2 text-warning"></i> Subject Registry
+        </h5>
+        <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+            <i class="fas fa-plus me-1"></i> Add Subject
         </button>
     </div>
-    <div class="card-body">
-        <table class="table table-hover data-table">
-            <thead>
-                <tr><th>Class Code</th><th>Subject Code</th><th>Subject Description</th><th>Type</th><th>Program</th><th>Units</th><th>Status</th><th>Actions</th></tr>
-            </thead>
-            <tbody>
-                <?php while ($c = $courses->fetch_assoc()): ?>
-                <tr>
-                    <td><strong><?php echo htmlspecialchars($c['class_code'] ?? 'N/A'); ?></strong></td>
-                    <td><strong><?php echo htmlspecialchars($c['course_code'] ?? ''); ?></strong></td>
-                    <td><?php echo htmlspecialchars($c['course_name'] ?? ''); ?></td>
-                    <td>
-                        <?php if (($c['course_type'] ?? 'Minor') === 'Major'): ?>
-                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Major</span>
-                        <?php
-    else: ?>
-                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">Minor</span>
-                        <?php
-    endif; ?>
-                    </td>
-                    <td><span class="text-muted small"><?php echo htmlspecialchars($c['program_name'] ?? 'Unassigned'); ?></span></td>
-                    <td><?php echo $c['units']; ?></td>
-                    <td><span class="badge bg-<?php echo $c['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($c['status']); ?></span></td>
-                    <td class="text-nowrap">
-                        <button class="btn btn-sm btn-info" onclick='editCourse(<?php echo json_encode($c); ?>)' title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <?php if (getCurrentUserRole() === 'registrar'): ?>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this course?')">
-                            <?php csrfField(); ?>
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="course_id" value="<?php echo $c['course_id']; ?>">
-                            <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </form>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php
-endwhile; ?>
-            </tbody>
-        </table>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 courses-table data-table">
+                <thead>
+                    <tr>
+                        <th class="ps-4">CLASSIFICATION</th>
+                        <th>SUBJECT CODE</th>
+                        <th>SUBJ DESCRIPTION</th>
+                        <th>TYPE</th>
+                        <th>PROGRAM</th>
+                        <th class="text-center">UNITS</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-4">MANAGE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($c = $courses->fetch_assoc()): ?>
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="subject-icon-box bg-primary bg-opacity-10 text-primary border-0">
+                                    <i class="fas <?php echo ($c['course_type'] === 'Major') ? 'fa-award' : 'fa-book'; ?> small px-1"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark lh-1"><?php echo htmlspecialchars($c['class_code'] ?? 'N/A'); ?></div>
+                                    <div class="text-muted small mt-1" style="font-size: 0.65rem;">ID: #<?php echo str_pad($c['course_id'], 4, '0', STR_PAD_LEFT); ?></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-primary border px-2 py-1" style="font-size: 0.75rem;"><?php echo htmlspecialchars($c['course_code'] ?? ''); ?></span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark lh-sm"><?php echo htmlspecialchars($c['course_name'] ?? ''); ?></div>
+                            <div class="text-muted small text-truncate mt-1" style="max-width: 250px; font-size: 0.75rem;">
+                                <?php echo htmlspecialchars($c['description'] ?? 'Standard Subject Curriculum'); ?>
+                            </div>
+                        </td>
+                        <td>
+                            <?php if (($c['course_type'] ?? 'Minor') === 'Major'): ?>
+                                <span class="badge bg-danger bg-opacity-10 text-danger border-0 px-2 fw-bold" style="font-size: 0.7rem;">MAJOR</span>
+                            <?php else: ?>
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border-0 px-2 fw-bold" style="font-size: 0.7rem;">MINOR</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-graduation-cap me-2 small"></i>
+                                <span class="small fw-semibold"><?php echo htmlspecialchars($c['program_name'] ?? 'Unassigned'); ?></span>
+                            </div>
+                        </td>
+                        <td class="text-center">
+                            <span class="stat-pill stat-blue"><?php echo $c['units']; ?></span>
+                        </td>
+                        <td>
+                            <?php if (($c['status'] ?? 'active') === 'active'): ?>
+                                <div class="status-pill status-pill-active">
+                                    <div class="status-dot" style="background: #22c55e;"></div> Active
+                                </div>
+                            <?php else: ?>
+                                <div class="status-pill status-pill-inactive">
+                                    <div class="status-dot" style="background: #94a3b8;"></div> Inactive
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end pe-4" data-label="Control Actions">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button class="btn-premium-edit" onclick='editCourse(<?php echo json_encode($c); ?>)' title="Edit Course">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <?php if (getCurrentUserRole() === 'registrar'): ?>
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this course?')">
+                                    <?php csrfField(); ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="course_id" value="<?php echo $c['course_id']; ?>">
+                                    <button type="submit" class="btn-premium-delete btn-action-delete" title="Delete Course">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -214,9 +362,9 @@ endwhile; ?>
             <form method="POST">
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5>Add Course</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-book-plus me-2 text-warning"></i>Add Subject</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -284,8 +432,11 @@ endforeach; ?>
                         <textarea name="description" class="form-control"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Create</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-plus-circle me-1"></i> Create Subject
+                    </button>
                 </div>
             </form>
         </div>
@@ -300,9 +451,9 @@ endforeach; ?>
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="course_id" id="edit_course_id">
-                <div class="modal-header">
-                    <h5>Edit Course</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2 text-warning"></i>Edit Subject</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -376,8 +527,11 @@ endforeach; ?>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Update</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Update Subject
+                    </button>
                 </div>
             </form>
         </div>

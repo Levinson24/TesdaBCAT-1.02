@@ -132,33 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             redirectWithMessage('sections.php', 'Error deleting section: ' . $conn->error, 'danger');
         }
     }
-    elseif ($_POST['action'] === 'quick_create_course') {
-        $classCode = strtoupper(sanitizeInput($_POST['class_code']));
-        $courseCode = strtoupper(sanitizeInput($_POST['course_code']));
-        if (strlen($classCode) !== 6 || strlen($courseCode) !== 6) {
-            redirectWithMessage('sections.php', 'Codes must be exactly 6 characters.', 'danger');
-        }
-
-        $courseName = sanitizeInput($_POST['course_name']);
-        $units = intval($_POST['units']);
-        $programId = !empty($_POST['program_id']) ? intval($_POST['program_id']) : null;
-
-        $stmt = $conn->prepare("INSERT INTO courses (class_code, course_code, course_name, units, program_id, status) VALUES (?, ?, ?, ?, ?, 'active')");
-        $stmt->bind_param("sssii", $classCode, $courseCode, $courseName, $units, $programId);
-        try {
-            if ($stmt->execute()) {
-                logAudit(getCurrentUserId(), 'CREATE', 'courses', $conn->insert_id, null, "Quick created course: $courseCode");
-                redirectWithMessage('sections.php', 'Subject created successfully. You can now assign it to a section.', 'success');
-            }
-            else {
-                redirectWithMessage('sections.php', 'Error creating subject: ' . $conn->error, 'danger');
-            }
-        }
-        catch (mysqli_sql_exception $e) {
-            $msg = (strpos($e->getMessage(), 'Duplicate entry') !== false) ? 'Duplicate entry detected.' : $e->getMessage();
-            redirectWithMessage('sections.php', 'Error: ' . $msg, 'danger');
-        }
-    }
+    // Legacy quick_create_course removed in favor of AJAX at ajax/quick_subject.php
 }
 
 $pageTitle = 'Manage Class Sections';
@@ -197,51 +171,162 @@ $programs_list = [];
 while ($p = $prog_res->fetch_assoc()) {
     $programs_list[] = $p;
 }
-?>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-layer-group"></i> Class Sections</h5>
+// === Premium Styles ===
+?>
+<style>
+    .premium-card {
+        border-radius: 1rem;
+    }
+    .bg-dark-navy {
+        background-color: #0f172a !important;
+    }
+    .sections-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    .sections-table tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #334155;
+        font-size: 0.85rem;
+    }
+    .sect-icon-box {
+        width: 32px;
+        height: 32px;
+        background: #f1f5f9;
+        color: #6366f1;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        margin-right: 12px;
+        flex-shrink: 0;
+        border: 1px solid #e2e8f0;
+        font-size: 0.8rem;
+    }
+    /* Premium Action Buttons */
+    .btn-premium-edit, .btn-premium-delete {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+    .btn-premium-edit {
+        background-color: #eff6ff;
+        color: #2563eb !important;
+    }
+    .btn-premium-edit:hover {
+        background-color: #2563eb;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+    .btn-premium-delete {
+        background-color: #fef2f2;
+        color: #ef4444 !important;
+    }
+    .btn-premium-delete:hover {
+        background-color: #ef4444;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+    }
+</style>
+
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-layer-group me-2 text-warning"></i> Class Sections Registry
+        </h5>
         <div>
-            <button class="btn btn-outline-light btn-sm me-2" data-bs-toggle="modal" data-bs-target="#quickCourseModal">
-                <i class="fas fa-book-plus"></i> Quick Create Subject
+            <button class="btn btn-outline-info bg-info bg-opacity-10 btn-sm rounded-pill px-3 me-2 fw-bold border-0" data-bs-toggle="modal" data-bs-target="#quickCourseModal">
+                <i class="fas fa-plus-circle me-1"></i> Quick Subject
             </button>
-            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-                <i class="fas fa-plus"></i> Add Section
+            <button class="btn btn-light btn-sm rounded-pill px-3 shadow-sm fw-bold border-0 text-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus me-1"></i> Add Section
             </button>
         </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover data-table">
-            <thead>
-                <tr><th>Subject Description</th><th>Section</th><th>Instructor</th><th>Schedule / Room</th><th>SY/Semester</th><th>Status</th><th>Actions</th></tr>
-            </thead>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 sections-table data-table">
+                <thead>
+                    <tr>
+                        <th class="ps-4">SUBJECT / SECTION</th>
+                        <th>INSTRUCTOR</th>
+                        <th>SCHEDULE & ROOM</th>
+                        <th class="text-center">ENROLLED</th>
+                        <th class="text-center">ACADEMIC PERIOD</th>
+                        <th class="text-end pe-4">STATUS</th>
+                        <th class="text-end pe-4">ACTIONS</th>
+                    </tr>
+                </thead>
             <tbody>
                 <?php while ($s = $sections->fetch_assoc()): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars(($s['course_code'] ?? '') . ' - ' . ($s['course_name'] ?? '')); ?></td>
-                    <td><?php echo htmlspecialchars($s['section_name'] ?? ''); ?></td>
-                    <td><?php echo htmlspecialchars($s['instructor_name'] ?? ''); ?></td>
-                    <td>
-                        <div class="small fw-bold text-primary"><?php echo htmlspecialchars($s['schedule'] ?? 'TBA'); ?></div>
-                        <div class="small text-muted"><i class="fas fa-door-open me-1"></i><?php echo htmlspecialchars($s['room'] ?? 'TBA'); ?></div>
-                    </td>
-                    <td><?php echo htmlspecialchars(($s['semester'] ?? '') . ' ' . ($s['school_year'] ?? '')); ?></td>
-                    <td><span class="badge bg-success"><?php echo ucfirst($s['status']); ?></span></td>
-                    <td class="text-nowrap">
-                        <button class="btn btn-sm btn-info mb-1" onclick='editSection(<?php echo json_encode($s); ?>)' title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <?php if (getCurrentUserRole() === 'registrar'): ?>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this section? This action cannot be undone.')">
-                            <?php csrfField(); ?>
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="section_id" value="<?php echo $s['section_id']; ?>">
-                            <button type="submit" class="btn btn-sm btn-danger mb-1" title="Delete">
-                                <i class="fas fa-trash"></i>
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="sect-icon-box">
+                                    <?php echo substr($s['section_name'] ?? 'S', 0, 1); ?>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-primary"><?php echo htmlspecialchars($s['section_name'] ?? ''); ?></div>
+                                    <small class="text-muted d-block" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                        <?php echo htmlspecialchars($s['course_name'] ?? ''); ?>
+                                    </small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark"><?php echo htmlspecialchars(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? '')); ?></div>
+                            <small class="text-muted">Faculty ID: <?php echo htmlspecialchars($s['instructor_id'] ?? 'N/A'); ?></small>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-indigo" style="font-size: 0.8rem;"><i class="far fa-clock me-1"></i> <?php echo htmlspecialchars($s['schedule'] ?? 'TBA'); ?></div>
+                            <div class="text-muted small"><i class="fas fa-door-open me-1"></i> <?php echo htmlspecialchars($s['room'] ?? 'TBA'); ?></div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge rounded-pill bg-info bg-opacity-10 text-info px-3">
+                                <?php echo $s['enrolled_count']; ?> Studs
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <div class="fw-bold text-dark"><?php echo htmlspecialchars($s['semester'] ?? ''); ?> Sem</div>
+                            <div class="text-muted small">SY <?php echo htmlspecialchars($s['school_year'] ?? ''); ?></div>
+                        </td>
+                        <td class="text-end">
+                            <?php $status = $s['status'] ?? 'active'; ?>
+                            <span class="badge rounded-pill <?php echo $status === 'active' ? 'bg-success' : ($status === 'completed' ? 'bg-primary' : 'bg-secondary'); ?> bg-opacity-10 text-<?php echo $status === 'active' ? 'success' : ($status === 'completed' ? 'primary' : 'secondary'); ?> px-3">
+                                <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> <?php echo ucfirst($status); ?>
+                            </span>
+                        </td>
+                    <td class="text-nowrap pe-4">
+                        <div class="d-flex justify-content-end gap-2">
+                            <button class="btn-premium-edit" onclick='editSection(<?php echo json_encode($s); ?>)'>
+                                <i class="fas fa-edit"></i>
                             </button>
-                        </form>
-                        <?php endif; ?>
+                            <?php if (getCurrentUserRole() === 'registrar'): ?>
+                            <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this section?')">
+                                <?php csrfField(); ?>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="section_id" value="<?php echo $s['section_id']; ?>">
+                                <button type="submit" class="btn-premium-delete">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
                 <?php
@@ -257,9 +342,9 @@ endwhile; ?>
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="create">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5>Add Class Section</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-plus-circle me-2 text-warning"></i>Add Class Section</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -276,7 +361,7 @@ while ($c = $courses->fetch_assoc()): ?>
 endwhile; ?>
                         </select>
                         <div class="form-text mt-1">
-                            Can't find the subject? <a href="#" data-bs-toggle="modal" data-bs-target="#quickCourseModal" class="text-primary decoration-none">Quick Create Subject</a>
+                            Can't find the subject? <a href="javascript:void(0)" onclick="openQuickCourse()" class="text-primary decoration-none fw-bold">Quick Create Subject</a>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -317,8 +402,11 @@ endwhile; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Create Section</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-plus-circle me-1"></i> Create Section
+                    </button>
                 </div>
             </div>
         </form>
@@ -332,9 +420,9 @@ endwhile; ?>
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="section_id" id="edit_section_id">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5>Edit Class Section</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2 text-warning"></i>Edit Class Section</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -397,8 +485,11 @@ endwhile; ?>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Update Section</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Update Section
+                    </button>
                 </div>
             </div>
         </form>
@@ -418,20 +509,110 @@ function editSection(data) {
     document.getElementById('edit_status').value = data.status;
     new bootstrap.Modal(document.getElementById('editModal')).show();
 }
+
+function openQuickCourse() {
+    // Hide addModal cleanly using Bootstrap class/method
+    const addModalEl = document.getElementById('addModal');
+    const addModal = bootstrap.Modal.getInstance(addModalEl);
+    if (addModal) {
+        addModal.hide();
+    }
+    
+    // Show quickCourseModal with a small delay to allow addModal to close
+    setTimeout(() => {
+        const quickModal = new bootstrap.Modal(document.getElementById('quickCourseModal'));
+        quickModal.show();
+    }, 400);
+}
+
+// AJAX Quick Subject Submission
+document.getElementById('quickSubjectForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const alertBox = document.getElementById('quickSubjectAlert');
+    
+    // Reset alert
+    alertBox.classList.add('d-none');
+    alertBox.classList.remove('alert-success', 'alert-danger');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+    
+    const formData = new FormData(form);
+    
+    fetch('ajax/quick_subject.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 1. Show success in modal
+            alertBox.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+            alertBox.classList.add('alert-success');
+            alertBox.classList.remove('d-none');
+            
+            // 2. Append new option to BOTH course_id selects
+            const newOption = new Option(data.display, data.course_id);
+            const addSelect = document.querySelector('select[name="course_id"]');
+            const editSelect = document.getElementById('edit_course_id');
+            
+            if (addSelect) {
+                addSelect.add(newOption.cloneNode(true));
+                addSelect.value = data.course_id;
+            }
+            if (editSelect) editSelect.add(newOption.cloneNode(true));
+            
+            // 3. Delayed closing
+            setTimeout(() => {
+                const quickModalEl = document.getElementById('quickCourseModal');
+                const quickModal = bootstrap.Modal.getInstance(quickModalEl);
+                if (quickModal) quickModal.hide();
+                
+                form.reset();
+                alertBox.classList.add('d-none');
+                
+                // 4. Re-open addModal with slight delay
+                setTimeout(() => {
+                    const addModal El = document.getElementById('addModal');
+                    const addModal = new bootstrap.Modal(addModalEl);
+                    addModal.show();
+                }, 400);
+            }, 1000);
+            
+        } else {
+            alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + data.message;
+            alertBox.classList.add('alert-danger');
+            alertBox.classList.remove('d-none');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alertBox.innerHTML = '<i class="fas fa-times-circle me-2"></i> Connection error. Please try again.';
+        alertBox.classList.add('alert-danger');
+        alertBox.classList.remove('d-none');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+});
 </script>
 
 <!-- Quick Create Subject Modal -->
 <div class="modal fade" id="quickCourseModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST">
+        <form id="quickSubjectForm" method="POST">
             <?php csrfField(); ?>
-            <input type="hidden" name="action" value="quick_create_course">
-            <div class="modal-content">
-                <div class="modal-header bg-info text-white">
-                    <h5 class="modal-title"><i class="fas fa-book-plus me-2"></i>Quick Create Subject</h5>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-book-plus me-2 text-warning"></i>Quick Create Subject</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <div id="quickSubjectAlert" class="alert d-none py-2 border-0 shadow-sm small" style="border-radius: 0.75rem;"></div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Class Code</label>
@@ -463,9 +644,11 @@ endforeach; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info px-4">Create Subject</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-plus-circle me-1"></i> Create Subject
+                    </button>
                 </div>
             </div>
         </form>

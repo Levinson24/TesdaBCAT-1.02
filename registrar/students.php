@@ -102,6 +102,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $status = sanitizeInput($_POST['status']);
         $dob = sanitizeInput($_POST['date_of_birth']);
 
+        // Fetch current status to detect change to 'dropped'
+        $oldStatusStmt = $conn->prepare("SELECT status FROM students WHERE student_id = ?");
+        $oldStatusStmt->bind_param("i", $studentId);
+        $oldStatusStmt->execute();
+        $oldStatusRes = $oldStatusStmt->get_result()->fetch_assoc();
+        $oldStatus = $oldStatusRes['status'] ?? '';
+        $oldStatusStmt->close();
+
         $academicHonor = !empty($_POST['academic_honor']) ? sanitizeInput($_POST['academic_honor']) : null;
         $evaluatorId = !empty($academicHonor) ? getCurrentUserId() : null;
 
@@ -119,6 +127,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt = $conn->prepare("UPDATE students SET student_no = ?, first_name = ?, last_name = ?, middle_name = ?, date_of_birth = ?, gender = ?, elem_school = ?, elem_year = ?, secondary_school = ?, secondary_year = ?, address = ?, municipality = ?, religion = ?, contact_number = ?, email = ?, program_id = ?, dept_id = ?, year_level = ?, status = ?, academic_honor = ?, honor_evaluated_by = ? WHERE student_id = ?");
         $stmt->bind_param("sssssssssssssssiiissii", $studentNo, $firstName, $lastName, $middleName, $dob, $gender, $elemSchool, $elemYear, $secSchool, $secYear, $address, $municipality, $religion, $contactNumber, $email, $programId, $deptId, $yearLevel, $status, $academicHonor, $evaluatorId, $studentId);
         if ($stmt->execute()) {
+            // Lifecycle Cleanup: If status changed to 'dropped', clear current semester enrollments
+            if ($status === 'dropped' && $oldStatus !== 'dropped') {
+                $curSem = getSetting('current_semester', '1st');
+                $curAY = getSetting('academic_year', '2024-2025');
+                
+                $cleanupStmt = $conn->prepare("
+                    DELETE e FROM enrollments e
+                    JOIN class_sections cs ON e.section_id = cs.section_id
+                    WHERE e.student_id = ? 
+                    AND cs.semester = ? 
+                    AND cs.school_year = ?
+                ");
+                $cleanupStmt->bind_param("iss", $studentId, $curSem, $curAY);
+                $cleanupStmt->execute();
+                $cleanupStmt->close();
+                
+                logAudit(getCurrentUserId(), 'UPDATE', 'students', $studentId, null, "Status changed to 'Dropped'. Automatically cleared current semester ($curSem $curAY) enrollments.");
+            }
             logAudit(getCurrentUserId(), 'UPDATE', 'students', $studentId, null, "Updated student profile: $studentNo");
             redirectWithMessage('students.php', 'Student updated successfully' . ($academicHonor ? ' with ' . $academicHonor : ''), 'success');
         }
@@ -143,6 +169,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 $pageTitle = 'Manage Students';
 require_once '../includes/header.php';
+
+// === CSS for Premium Look ===
+?>
+<style>
+    .bg-dark-navy { background-color: #0f172a !important; }
+    .premium-card { border-radius: 1rem; }
+    .students-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.70rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    .students-table tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #334155;
+    }
+    /* Premium Action Buttons */
+    .btn-premium-eval, .btn-premium-edit, .btn-premium-delete {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: none !important;
+    }
+    .btn-premium-eval {
+        background-color: #f0f9ff;
+        color: #0369a1 !important;
+    }
+    .btn-premium-eval:hover {
+        background-color: #0369a1;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(3, 105, 161, 0.15);
+    }
+    .btn-premium-edit {
+        background-color: #eff6ff;
+        color: #2563eb !important;
+    }
+    .btn-premium-edit:hover {
+        background-color: #2563eb;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+    }
+    .btn-premium-delete {
+        background-color: #fef2f2;
+        color: #ef4444 !important;
+    }
+    .btn-premium-delete:hover {
+        background-color: #ef4444;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);
+    }
+</style>
+<?php
 
 // === STEP 3: Fetch data ===
 $programWhere = $isStaff ? " AND p.dept_id = $deptId" : "";
@@ -173,65 +262,101 @@ $students = $conn->query("
 ");
 ?>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between">
-        <h5 class="mb-0"><i class="fas fa-user-graduate"></i> Student Management</h5>
-        <div>
-            <a href="student_import.php" class="btn btn-light btn-sm me-2">
-                <i class="fas fa-file-import"></i> Import Students
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-user-graduate me-2 text-warning"></i> Student Academic Registry
+        </h5>
+        <div class="d-flex gap-2 pe-2">
+            <a href="student_import.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold border-0">
+                <i class="fas fa-file-import me-1"></i> Import
             </a>
-            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-                <i class="fas fa-plus"></i> Add Student
+            <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus-circle me-1"></i> Add Student
             </button>
         </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover data-table">
-            <thead>
-                <tr>
-                    <th>Student No</th>
-                    <th>Name</th>
-                    <th>Diploma Program</th>
-                    <th>Program (Course)</th>
-                    <th>Year</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($s = $students->fetch_assoc()): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($s['student_no'] ?? ''); ?></td>
-                    <td><?php echo htmlspecialchars(($s['first_name'] ?? '') . (($s['middle_name'] ?? '') ? ' ' . $s['middle_name'] : '') . ' ' . ($s['last_name'] ?? '')); ?></td>
-                    <td><?php echo htmlspecialchars($s['dept_name'] ?? 'Unassigned'); ?></td>
-                    <td><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></td>
-                    <td><?php echo $s['year_level'] ?? ''; ?></td>
-                    <td><?php echo htmlspecialchars($s['email'] ?? 'N/A'); ?></td>
-                    <td><span class="badge bg-<?php echo $s['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($s['status']); ?></span></td>
-                    <td class="text-nowrap">
-                        <button class="btn btn-sm btn-info" onclick='editStudent(<?php echo json_encode($s); ?>)' title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <a href="curriculum_evaluation.php?id=<?php echo $s['student_id']; ?>" class="btn btn-sm btn-primary" target="_blank" title="Print Evaluation">
-                            <i class="fas fa-file-invoice"></i>
-                        </a>
-                        <?php if (getCurrentUserRole() === 'registrar'): ?>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this student? Account will also be removed.')">
-                            <?php csrfField(); ?>
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="student_id" value="<?php echo $s['student_id']; ?>">
-                            <button type="submit" class="btn btn-sm btn-danger" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </form>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php
-endwhile; ?>
-            </tbody>
-        </table>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 data-table">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-4">Student ID / No</th>
+                        <th>Student Name & Identity</th>
+                        <th>Academic Placement</th>
+                        <th>Year Level</th>
+                        <th>Contact info</th>
+                        <th>Status</th>
+                        <th class="text-end pe-4">Control Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($s = $students->fetch_assoc()): ?>
+                    <tr>
+                        <td class="ps-4">
+                            <span class="fw-bold text-primary">#<?php echo htmlspecialchars($s['student_no'] ?? ''); ?></span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px;">
+                                    <i class="fas fa-user-graduate"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? '')); ?></div>
+                                    <div class="text-muted" style="font-size: 0.70rem;"><i class="fas fa-fingerprint me-1"></i> UID: <?php echo $s['user_id']; ?></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark" style="font-size: 0.8rem;"><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></div>
+                            <div class="text-muted small" style="font-size: 0.7rem; text-transform: uppercase;"><?php echo htmlspecialchars($s['dept_name'] ?? 'Unassigned'); ?></div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.7rem;">Year <?php echo $s['year_level'] ?? ''; ?></span>
+                        </td>
+                        <td>
+                            <div class="small"><i class="far fa-envelope me-1 text-muted"></i> <?php echo htmlspecialchars($s['email'] ?? 'N/A'); ?></div>
+                            <div class="small"><i class="fas fa-phone me-1 text-muted"></i> <?php echo htmlspecialchars($s['contact_number'] ?? 'N/A'); ?></div>
+                        </td>
+                        <td>
+                            <?php
+                                $statusColors = [
+                                    'active' => 'success',
+                                    'inactive' => 'secondary',
+                                    'graduated' => 'primary',
+                                    'dropped' => 'danger'
+                                ];
+                                $color = $statusColors[$s['status']] ?? 'secondary';
+                            ?>
+                            <span class="badge rounded-pill bg-<?php echo $color; ?> bg-opacity-10 text-<?php echo $color; ?> px-3">
+                                <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> <?php echo ucfirst($s['status']); ?>
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="d-flex justify-content-end gap-2">
+                                <a href="curriculum_evaluation.php?id=<?php echo $s['student_id']; ?>" class="btn-premium-eval" title="Evaluate Curriculum" target="_blank">
+                                    <i class="fas fa-file-invoice"></i>
+                                </a>
+                                <button class="btn-premium-edit" onclick='editStudent(<?php echo json_encode($s); ?>)' title="Edit Profile">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <?php if (getCurrentUserRole() === 'registrar'): ?>
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this student?')">
+                                    <?php csrfField(); ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="student_id" value="<?php echo $s['student_id']; ?>">
+                                    <button type="submit" class="btn-premium-delete" title="Delete Profile">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -240,10 +365,10 @@ endwhile; ?>
         <form method="POST">
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="create">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5>Add Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-user-plus me-2 text-warning"></i>Add Student</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info py-2">
@@ -352,8 +477,11 @@ endforeach; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Create Student</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> Create Student Profile
+                    </button>
                 </div>
             </div>
         </form>
@@ -367,10 +495,10 @@ endforeach; ?>
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="student_id" id="edit_student_id">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5>Edit Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-user-edit me-2 text-warning"></i>Edit Student Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div id="disqualification_alert" class="alert alert-danger py-2 d-none">
@@ -494,8 +622,9 @@ endforeach; ?>
                                 <option value="active">Active</option>
                                 <option value="inactive">Inactive</option>
                                 <option value="graduated">Graduated</option>
-                                <option value="dropped">Dropped</option>
+                                <option value="dropped">Dropped (Clears Current Load)</option>
                             </select>
+                            <div class="form-text small text-danger">Selecting 'Dropped' will automatically remove current semester enrollments.</div>
                         </div>
                     </div>
                     <div class="row">
@@ -514,8 +643,11 @@ endforeach; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Update Student</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Update Student Profile
+                    </button>
                 </div>
             </div>
         </form>

@@ -104,95 +104,141 @@ $students = $studentsResult->fetch_all(MYSQLI_ASSOC);
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h4 class="mb-1"><i class="fas fa-users-cog me-2 text-primary"></i>Bulk Enrollment</h4>
-        <p class="text-muted mb-0">Enroll multiple students into a section at once</p>
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card premium-card overflow-hidden shadow-sm border-0">
+            <div class="card-header gradient-navy p-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1 text-white fw-bold"><i class="fas fa-users-cog me-2 text-warning"></i>Bulk Enrollment Registry</h4>
+                    <p class="text-white opacity-75 mb-0 small">Enroll multiple students into a section at once</p>
+                </div>
+                <a href="enrollments.php" class="btn btn-outline-light rounded-pill px-4">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Enrollments
+                </a>
+            </div>
+        </div>
     </div>
-    <a href="enrollments.php" class="btn btn-outline-secondary">
-        <i class="fas fa-arrow-left me-2"></i>Back to Enrollments
-    </a>
 </div>
 
 <?php foreach ($errors as $err): ?>
     <div class="alert alert-danger mb-3" style="border-radius:1rem;"><?php echo htmlspecialchars($err); ?></div>
 <?php endforeach; ?>
 
-<div class="card border-0 shadow-sm mb-4" style="border-radius:1.25rem;">
-    <div class="card-body p-4">
+    <div class="card-body p-4 pt-0">
         <form method="POST" id="bulkEnrollForm">
             <?php csrfField(); ?>
 
-            <!-- Step 1: Select Section -->
-            <div class="mb-4">
-                <label for="section_id" class="form-label fw-700 text-uppercase" style="font-size:0.75rem;letter-spacing:0.05em;color:#64748b;">
-                    <i class="fas fa-chalkboard me-1 text-primary"></i> Step 1 — Select Section
-                </label>
-                <select class="form-select" id="section_id" name="section_id" required onchange="loadSectionInfo(this)">
-                    <option value="">— Choose a class section —</option>
-                    <?php foreach ($sections as $sec): ?>
-                        <option value="<?php echo $sec['section_id']; ?>"
-                                data-enrolled="<?php echo $sec['enrolled_count']; ?>"
-                                data-max="<?php echo $sec['max_students']; ?>"
-                                <?php echo (isset($_POST['section_id']) && $_POST['section_id'] == $sec['section_id']) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars("{$sec['course_code']} — {$sec['section_name']} ({$sec['semester']} {$sec['school_year']}) [{$sec['enrolled_count']}/{$sec['max_students']}]"); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <div id="sectionInfo" class="mt-2 small text-muted d-none">
-                    <i class="fas fa-info-circle me-1"></i>
-                    <span id="sectionInfoText"></span>
-                </div>
-            </div>
-
-            <!-- Step 2: Select Students -->
-            <div class="mb-4">
-                <label class="form-label fw-700 text-uppercase" style="font-size:0.75rem;letter-spacing:0.05em;color:#64748b;">
-                    <i class="fas fa-user-check me-1 text-primary"></i> Step 2 — Select Students
-                </label>
-
-                <!-- Search filter -->
-                <div class="mb-2">
-                    <input type="text" class="form-control" id="studentSearch" placeholder="🔍 Filter students by name, No., or program..."
-                           style="border-radius:0.75rem;" oninput="filterStudents(this.value)">
-                </div>
-
-                <div class="d-flex gap-2 mb-2">
-                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll(true)" style="border-radius:0.5rem;">
-                        <i class="fas fa-check-double me-1"></i>Select All Visible
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAll(false)" style="border-radius:0.5rem;">
-                        <i class="fas fa-times me-1"></i>Clear Selection
-                    </button>
-                    <span class="ms-auto text-muted my-auto small" id="selectedCount">0 selected</span>
-                </div>
-
-                <div style="max-height:340px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:1rem;padding:0.5rem;" id="studentList">
-                    <?php foreach ($students as $stu):
-                        $fullName = htmlspecialchars("{$stu['last_name']}, {$stu['first_name']}");
-                        $prog     = htmlspecialchars($stu['program_name'] ?? '');
-                    ?>
-                    <label class="d-flex align-items-center gap-3 p-2 student-item"
-                           style="border-radius:0.5rem;cursor:pointer;transition:background 0.15s;"
-                           onmouseover="this.style.background='#f0f4f8'" onmouseout="this.style.background=''"
-                           data-search="<?php echo strtolower($fullName . ' ' . $stu['student_no'] . ' ' . $prog); ?>">
-                        <input type="checkbox" name="student_ids[]" value="<?php echo $stu['student_id']; ?>"
-                               class="form-check-input student-cb" onchange="updateCount()" style="width:18px;height:18px;">
-                        <div class="flex-grow-1">
-                            <div class="fw-600"><?php echo $fullName; ?></div>
-                            <div class="text-muted small"><?php echo $stu['student_no']; ?> &nbsp;|&nbsp; Yr <?php echo $stu['year_level']; ?> &nbsp;|&nbsp; <?php echo $prog; ?></div>
+            <div class="row g-4">
+                <!-- Left Column: Section Selection -->
+                <div class="col-lg-5">
+                    <div class="p-3 bg-light rounded-4 border h-100">
+                        <label for="section_id" class="form-label fw-700 text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:0.05em;color:#1e293b;">
+                            <i class="fas fa-chalkboard me-1 text-primary"></i> Step 1 — Select Section
+                        </label>
+                        <select class="form-select border-0 shadow-sm mb-3" id="section_id" name="section_id" required onchange="loadSectionInfo(this)" style="height: 50px; border-radius: 12px;">
+                            <option value="">— Choose a class section —</option>
+                            <?php foreach ($sections as $sec): ?>
+                                <option value="<?php echo $sec['section_id']; ?>"
+                                        data-enrolled="<?php echo $sec['enrolled_count']; ?>"
+                                        data-max="<?php echo $sec['max_students']; ?>"
+                                        <?php echo (isset($_POST['section_id']) && $_POST['section_id'] == $sec['section_id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars("{$sec['course_code']} — {$sec['section_name']} ({$sec['semester']} {$sec['school_year']}) [{$sec['enrolled_count']}/{$sec['max_students']}]"); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        
+                        <div id="sectionInfo" class="alert alert-info border-0 shadow-sm d-none mb-0" style="border-radius: 12px;">
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-info-circle me-2 fa-lg"></i>
+                                <span id="sectionInfoText" class="small"></span>
+                            </div>
                         </div>
-                    </label>
-                    <?php endforeach; ?>
+
+                        <div class="mt-4 d-none d-lg-block">
+                            <div class="text-center p-4">
+                                <i class="fas fa-user-plus fa-4x text-primary opacity-10 mb-3"></i>
+                                <p class="text-muted small">Select a section to begin enrolling students. Make sure to check available slots.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Student Selection -->
+                <div class="col-lg-7">
+                    <div class="p-3 bg-white rounded-4 border h-100">
+                        <label class="form-label fw-700 text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:0.05em;color:#1e293b;">
+                            <i class="fas fa-user-check me-1 text-primary"></i> Step 2 — Select Students
+                        </label>
+
+                        <!-- Search filter -->
+                        <div class="input-group mb-3 shadow-sm" style="border-radius: 12px; overflow: hidden;">
+                            <span class="input-group-text border-0 bg-white pe-0"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" class="form-control border-0 ps-2" id="studentSearch" placeholder="Filter students by name, No., or program..."
+                                   style="height: 45px;" oninput="filterStudents(this.value)">
+                        </div>
+
+                        <div class="d-flex align-items-center justify-content-between mb-3 px-1">
+                            <div class="btn-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                                <button type="button" class="btn btn-sm btn-light border-end" onclick="selectAll(true)">
+                                    <i class="fas fa-check-square me-1 text-primary"></i>Select All
+                                </button>
+                                <button type="button" class="btn btn-sm btn-light" onclick="selectAll(false)">
+                                    <i class="fas fa-minus-square me-1 text-danger"></i>Clear
+                                </button>
+                            </div>
+                            <span class="badge bg-primary rounded-pill px-3 py-2" id="selectedCount">0 selected</span>
+                        </div>
+
+                        <div style="max-height:450px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:12px; padding:0.5rem; background: #fdfdfd;" id="studentList" class="custom-scrollbar">
+                            <?php foreach ($students as $stu):
+                                $fullName = htmlspecialchars("{$stu['last_name']}, {$stu['first_name']}");
+                                $prog     = htmlspecialchars($stu['program_name'] ?? '');
+                            ?>
+                            <label class="d-flex align-items-center gap-3 p-3 mb-2 student-item"
+                                   style="border-radius:12px; cursor:pointer; transition:all 0.2s; border: 1px solid #f1f5f9; background: white;"
+                                   onmouseover="this.style.borderColor='#3b82f6'; this.style.background='#f8fbff';" 
+                                   onmouseout="this.style.borderColor='#f1f5f9'; this.style.background='white';"
+                                   data-search="<?php echo strtolower($fullName . ' ' . $stu['student_no'] . ' ' . $prog); ?>">
+                                <input type="checkbox" name="student_ids[]" value="<?php echo $stu['student_id']; ?>"
+                                       class="form-check-input student-cb mt-0" onchange="updateCount()" style="width:20px; height:20px; cursor: pointer;">
+                                <div class="flex-grow-1">
+                                    <div class="fw-bold text-dark" style="font-size: 0.95rem;"><?php echo $fullName; ?></div>
+                                    <div class="text-muted small d-flex flex-wrap gap-2 mt-1">
+                                        <span class="badge bg-light text-dark fw-normal border"><?php echo $stu['student_no']; ?></span>
+                                        <span class="badge bg-light text-dark fw-normal border">Yr <?php echo $stu['year_level']; ?></span>
+                                        <span class="text-primary fw-600"><?php echo $prog; ?></span>
+                                    </div>
+                                </div>
+                            </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary px-5" style="border-radius:0.875rem;font-weight:700;" id="submitBtn">
-                <i class="fas fa-users-cog me-2"></i>Enroll Selected Students
-            </button>
+            <div class="mt-4 pt-4 border-top text-center text-lg-start">
+                <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow-lg transform-hover" id="submitBtn">
+                    <i class="fas fa-user-plus me-2 text-warning fa-lg"></i> ENROLL SELECTED STUDENTS
+                </button>
+                <button type="reset" class="btn btn-link text-muted ms-lg-3 mt-3 mt-lg-0 text-decoration-none small" onclick="setTimeout(updateCount, 50)">
+                    <i class="fas fa-undo me-1"></i> Reset Form
+                </button>
+            </div>
         </form>
     </div>
 </div>
+
+<style>
+.fw-700 { font-weight: 700; }
+.fw-600 { font-weight: 600; }
+.transform-hover { transition: transform 0.2s; }
+.transform-hover:hover { box-shadow: 0 10px 20px rgba(0,56,168,0.2); }
+
+.student-item:has(.student-cb:checked) {
+    background: #eff6ff !important;
+    border-color: #3b82f6 !important;
+}
+</style>
 
 <script>
 function loadSectionInfo(sel) {

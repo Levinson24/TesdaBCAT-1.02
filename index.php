@@ -81,11 +81,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     <style>
         :root {
-            --primary-indigo: #1a3a5c;
-            --secondary-indigo: #0f2a47;
+            --primary-indigo: #0038A8;
+            --secondary-indigo: #002366;
             --accent-indigo: #5b8db8;
             --text-main: #1e293b;
             --text-muted: #64748b;
+        }
+        
+        /* ──── ELEGANT SCROLLBARS ──── */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
         }
         
         /* ──── SHARED LAYOUT ──── */
@@ -222,7 +240,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-color: var(--primary-indigo);
             background: white;
             box-shadow: 0 10px 25px -10px rgba(26, 58, 92, 0.2);
-            transform: translateY(-2px);
         }
         
         .input-group-text {
@@ -261,23 +278,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         .btn-login {
-            background: linear-gradient(135deg, #1a3a5c, #0f2a47);
+            background: linear-gradient(to right, #0038A8, #0056b3);
             border: none;
-            padding: 1rem;
-            font-weight: 700;
-            border-radius: 1rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            font-size: 0.9rem;
-            margin-top: 1rem;
-            box-shadow: 0 10px 20px -10px rgba(26, 58, 92, 0.5);
-            transition: all 0.3s;
+            border-radius: 12px;
+            padding: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
         }
         
         .btn-login:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px -10px rgba(26, 58, 92, 0.6);
-            background: linear-gradient(135deg, #0f2a47, #071828);
+            box-shadow: 0 10px 20px -5px rgba(0, 56, 168, 0.4);
+            background: linear-gradient(to right, #002e8a, #0038A8);
         }
         
         .tesda-logo-wrap {
@@ -329,7 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <?php echo getFlashMessage(); ?>
                 
-                <form method="POST" action="">
+                <form id="loginForm" method="POST" action="">
                     <?php csrfField(); ?>
                     <div class="mb-4">
                         <label for="username" class="form-label">Account Username</label>
@@ -369,9 +381,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         Login to Portal <i class="fas fa-arrow-right ms-2"></i>
                     </button>
 
-                    <div class="text-center mb-3">
+                    <div class="text-center mb-3 d-flex align-items-center justify-content-center gap-2">
                         <a href="forgot_password.php" class="text-muted" style="font-size:0.85rem; text-decoration:none;">
                             <i class="fas fa-key me-1"></i> Forgot Password?
+                        </a>
+                        <span class="text-muted opacity-25">|</span>
+                        <a href="verify.php" class="text-primary fw-600" style="font-size:0.85rem; text-decoration:none;">
+                            <i class="fas fa-check-circle me-1"></i> Verify Document
                         </a>
                     </div>
 
@@ -411,7 +427,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 toggleIcon.classList.toggle('fa-eye');
                 toggleIcon.classList.toggle('fa-eye-slash');
             });
+            
+            const loginForm = document.getElementById('loginForm');
+            const loginLoader = document.getElementById('loginLoader');
+
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    // Check standard HTML5 validation first
+                    if (!this.checkValidity()) {
+                        return;
+                    }
+                    
+                    e.preventDefault();
+                    
+                    // Show loader overlay
+                    loginLoader.style.display = 'flex';
+                    // Brief delay to allow browser to render display:flex before animating opacity
+                    setTimeout(() => {
+                        loginLoader.style.opacity = '1';
+                    }, 20);
+
+                    // Delay actual form submission to display the animation (secure handoff effect)
+                    setTimeout(() => {
+                        loginForm.submit();
+                    }, 3500);
+                });
+            }
         });
     </script>
+    
+    <!-- Modern Full-Screen Loading Overlay -->
+    <div id="loginLoader" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 35, 102, 0.95); z-index: 9999; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); align-items: center; justify-content: center; flex-direction: column; color: white; opacity: 0; transition: opacity 0.4s ease;">
+        <div class="spinner-border text-light shadow-sm" role="status" style="width: 4.5rem; height: 4.5rem; border-width: 0.35rem; margin-bottom: 1.75rem; border-left-color: #f39c12;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <h2 style="font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 2rem; letter-spacing: -0.02em; margin-bottom: 0.5rem;">Authenticating...</h2>
+        <p style="color: rgba(255, 255, 255, 0.7); font-weight: 500; font-size: 0.95rem;">Establishing secure connection</p>
+    </div>
 </body>
 </html>

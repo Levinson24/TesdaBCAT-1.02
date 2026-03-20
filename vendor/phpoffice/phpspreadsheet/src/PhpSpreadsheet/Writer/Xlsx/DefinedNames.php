@@ -2,12 +2,10 @@
 
 namespace PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-use Composer\Pcre\Preg;
 use Exception;
 use PhpOffice\PhpSpreadsheet\Calculation\Calculation;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\DefinedName;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 use PhpOffice\PhpSpreadsheet\Shared\XMLWriter;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet as ActualWorksheet;
@@ -116,7 +114,7 @@ class DefinedNames
 
             $range[0] = Coordinate::absoluteCoordinate($range[0] ?? '');
             if (count($range) > 1) {
-                $range[1] = Coordinate::absoluteCoordinate($range[1] ?? '');
+                $range[1] = Coordinate::absoluteCoordinate($range[1]);
             }
             $range = implode(':', $range);
 
@@ -194,13 +192,14 @@ class DefinedNames
     private function getDefinedRange(DefinedName $definedName): string
     {
         $definedRange = $definedName->getValue();
-        $splitCount = Preg::matchAllWithOffsets(
+        $splitCount = preg_match_all(
             '/' . Calculation::CALCULATION_REGEXP_CELLREF_RELATIVE . '/mui',
             $definedRange,
-            $splitRanges
+            $splitRanges,
+            PREG_OFFSET_CAPTURE
         );
 
-        $lengths = array_map([StringHelper::class, 'strlenAllowNull'], array_column($splitRanges[0], 0));
+        $lengths = array_map('strlen', array_column($splitRanges[0], 0));
         $offsets = array_column($splitRanges[0], 1);
 
         $worksheets = $splitRanges[2];

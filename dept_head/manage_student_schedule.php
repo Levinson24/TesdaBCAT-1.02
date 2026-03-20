@@ -4,7 +4,7 @@
  */
 require_once '../includes/auth.php';
 require_once '../includes/functions.php';
-requireRole('dept_head');
+requireRole(['dept_head', 'registrar', 'admin']);
 
 $conn = getDBConnection();
 $userProfile = getUserProfile($_SESSION['user_id'], 'dept_head');
@@ -15,9 +15,14 @@ if (!$studentId) {
     redirectWithMessage('students.php', 'Invalid student ID.', 'danger');
 }
 
-// Verify student belongs to this department
-$stmt = $conn->prepare("SELECT * FROM students WHERE student_id = ? AND dept_id = ?");
-$stmt->bind_param("ii", $studentId, $deptId);
+// Verify student access
+if (hasRole(['registrar', 'admin'])) {
+    $stmt = $conn->prepare("SELECT * FROM students WHERE student_id = ?");
+    $stmt->bind_param("i", $studentId);
+} else {
+    $stmt = $conn->prepare("SELECT * FROM students WHERE student_id = ? AND dept_id = ?");
+    $stmt->bind_param("ii", $studentId, $deptId);
+}
 $stmt->execute();
 $student = $stmt->get_result()->fetch_assoc();
 $stmt->close();
@@ -51,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hasGrades = $checkGrades->get_result()->num_rows > 0;
         $checkGrades->close();
 
-        if ($hasGrades) {
+        if ($hasGrades && !hasRole(['registrar', 'admin', 'dept_head'])) {
             redirectWithMessage('manage_student_schedule.php?student_id=' . $studentId, 'Cannot reassign section because grades have already been submitted/recorded.', 'warning');
         }
 
@@ -118,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $checkGrades = $conn->prepare("SELECT grade_id FROM grades WHERE enrollment_id = ?");
         $checkGrades->bind_param("i", $enrollmentId);
         $checkGrades->execute();
-        if ($checkGrades->get_result()->num_rows > 0) {
+        if ($checkGrades->get_result()->num_rows > 0 && !hasRole(['registrar', 'admin', 'dept_head'])) {
             redirectWithMessage('manage_student_schedule.php?student_id=' . $studentId, 'Cannot drop subject because grades have already been recorded.', 'warning');
         }
         $checkGrades->close();
@@ -275,7 +280,12 @@ $deptsQuery = $conn->query("
             </div>
             <div class="card-body p-4">
                 <div class="alert alert-info py-2 small mb-4">
-                    <i class="fas fa-info-circle me-1"></i> You can add new subjects, reassign sections, or drop subjects for this student. <strong>Subjects with recorded grades cannot be dropped or reassigned.</strong>
+                    <i class="fas fa-info-circle me-1"></i> You can add new subjects, reassign sections, or drop subjects for this student. 
+                    <?php if (hasRole(['registrar', 'admin', 'dept_head'])): ?>
+                        <strong>Administrative Note:</strong> You have override powers to drop subjects even if grades exist.
+                    <?php else: ?>
+                        <strong>Subjects with recorded grades cannot be dropped or reassigned.</strong>
+                    <?php endif; ?>
                 </div>
 
                 <div class="table-responsive">
@@ -380,9 +390,21 @@ if ($currentEnrollments->num_rows > 0):
                                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                             </div>
                                                             <div class="modal-body text-start">
+                                                                <?php
+                                                                $checkGradesModal = $conn->prepare("SELECT grade_id FROM grades WHERE enrollment_id = ?");
+                                                                $checkGradesModal->bind_param("i", $e['enrollment_id']);
+                                                                $checkGradesModal->execute();
+                                                                $hasGradesForModal = $checkGradesModal->get_result()->num_rows > 0;
+                                                                $checkGradesModal->close();
+                                                                ?>
                                                                 <p>Are you sure you want to unload/drop <strong><?php echo htmlspecialchars($e['course_code'] . ' - ' . $e['course_name']); ?></strong> for this student?</p>
+                                                                <?php if ($hasGradesForModal): ?>
+                                                                    <div class="alert alert-danger py-2 small">
+                                                                        <i class="fas fa-exclamation-triangle me-1"></i> <strong>Warning:</strong> Grades are recorded for this subject. Dropping it will <strong>PERMANENTLY DELETE</strong> all midterm and final grades.
+                                                                    </div>
+                                                                <?php endif; ?>
                                                                 <div class="alert alert-warning py-2 small">
-                                                                    <i class="fas fa-exclamation-triangle"></i> This action will remove all enrollment records for this subject.
+                                                                    <i class="fas fa-info-circle me-1"></i> This action will remove all enrollment records for this subject.
                                                                 </div>
                                                             </div>
                                                             <div class="modal-footer">
@@ -502,7 +524,19 @@ if ($currentEnrollments->num_rows > 0):
                                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                             </div>
                                                             <div class="modal-body">
+                                                                <?php
+                                                                $checkGradesModal = $conn->prepare("SELECT grade_id FROM grades WHERE enrollment_id = ?");
+                                                                $checkGradesModal->bind_param("i", $e['enrollment_id']);
+                                                                $checkGradesModal->execute();
+                                                                $hasGradesForModal = $checkGradesModal->get_result()->num_rows > 0;
+                                                                $checkGradesModal->close();
+                                                                ?>
                                                                 <p>Are you sure you want to drop <strong><?php echo htmlspecialchars($e['course_code']); ?></strong>?</p>
+                                                                <?php if ($hasGradesForModal): ?>
+                                                                    <div class="alert alert-danger py-2 small">
+                                                                        <i class="fas fa-exclamation-triangle me-1"></i> <strong>Warning:</strong> Grades are recorded for this subject. Dropping it will <strong>PERMANENTLY DELETE</strong> all grades.
+                                                                    </div>
+                                                                <?php endif; ?>
                                                             </div>
                                                             <div class="modal-footer">
                                                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

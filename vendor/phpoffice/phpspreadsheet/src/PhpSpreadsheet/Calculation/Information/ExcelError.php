@@ -39,8 +39,6 @@ class ExcelError
      * ERROR_TYPE.
      *
      * @param mixed $value Value to check
-     *
-     * @return array<mixed>|int|string
      */
     public static function type(mixed $value = ''): array|int|string
     {
@@ -153,15 +151,5 @@ class ExcelError
     public static function CALC(): string
     {
         return self::ERROR_CODES['calculation'];
-    }
-
-    /**
-     * SPILL.
-     *
-     * @return string #SPILL!
-     */
-    public static function SPILL(): string
-    {
-        return self::ERROR_CODES['spill'];
     }
 }

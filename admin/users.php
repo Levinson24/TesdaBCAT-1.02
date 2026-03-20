@@ -65,8 +65,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
             $check->close();
 
-            $stmt = $conn->prepare("INSERT INTO users (username, password, role, status, dept_id) VALUES (?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssi", $username, $password, $role, $status, $deptId);
+            // Handle profile image upload
+            $profileImage = null;
+            if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+                $uploadResult = uploadFile($_FILES['profile_image'], '../uploads/profile_pics/', ['jpg', 'jpeg', 'png']);
+                if ($uploadResult[0]) {
+                    $profileImage = $uploadResult[2];
+                }
+            }
+            
+            $stmt = $conn->prepare("INSERT INTO users (username, password, role, status, dept_id, profile_image) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssis", $username, $password, $role, $status, $deptId, $profileImage);
 
             if ($stmt->execute()) {
                 $userId = $stmt->insert_id;
@@ -102,17 +111,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $deptId = !empty($_POST['dept_id']) ? intval($_POST['dept_id']) : null;
             $programId = !empty($_POST['program_id']) ? intval($_POST['program_id']) : null;
 
+            // Handle profile image upload
+            $profileImage = null;
+            if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+                $uploadResult = uploadFile($_FILES['profile_image'], '../uploads/profile_pics/', ['jpg', 'jpeg', 'png']);
+                if ($uploadResult[0]) {
+                    $profileImage = $uploadResult[2];
+                    
+                    // Get old image to delete
+                    $oldStmt = $conn->prepare("SELECT profile_image FROM users WHERE user_id = ?");
+                    $oldStmt->bind_param("i", $userId);
+                    $oldStmt->execute();
+                    $oldRes = $oldStmt->get_result()->fetch_assoc();
+                    $oldImage = $oldRes['profile_image'] ?? null;
+                    $oldStmt->close();
+                }
+            }
+
             if (!empty($_POST['password'])) {
                 $password = hashPassword($_POST['password']);
-                $stmt = $conn->prepare("UPDATE users SET username = ?, password = ?, role = ?, status = ?, dept_id = ? WHERE user_id = ?");
-                $stmt->bind_param("ssssii", $username, $password, $role, $status, $deptId, $userId);
+                if ($profileImage) {
+                    $stmt = $conn->prepare("UPDATE users SET username = ?, password = ?, role = ?, status = ?, dept_id = ?, profile_image = ?, reset_requested = 0 WHERE user_id = ?");
+                    $stmt->bind_param("ssssisi", $username, $password, $role, $status, $deptId, $profileImage, $userId);
+                } else {
+                    $stmt = $conn->prepare("UPDATE users SET username = ?, password = ?, role = ?, status = ?, dept_id = ?, reset_requested = 0 WHERE user_id = ?");
+                    $stmt->bind_param("ssssii", $username, $password, $role, $status, $deptId, $userId);
+                }
             }
             else {
-                $stmt = $conn->prepare("UPDATE users SET username = ?, role = ?, status = ?, dept_id = ? WHERE user_id = ?");
-                $stmt->bind_param("sssii", $username, $role, $status, $deptId, $userId);
+                if ($profileImage) {
+                    $stmt = $conn->prepare("UPDATE users SET username = ?, role = ?, status = ?, dept_id = ?, profile_image = ?, reset_requested = 0 WHERE user_id = ?");
+                    $stmt->bind_param("sssisi", $username, $role, $status, $deptId, $profileImage, $userId);
+                } else {
+                    $stmt = $conn->prepare("UPDATE users SET username = ?, role = ?, status = ?, dept_id = ?, reset_requested = 0 WHERE user_id = ?");
+                    $stmt->bind_param("sssii", $username, $role, $status, $deptId, $userId);
+                }
             }
 
             if ($stmt->execute()) {
+                if (isset($oldImage) && $oldImage && file_exists('../uploads/profile_pics/' . $oldImage)) {
+                    @unlink('../uploads/profile_pics/' . $oldImage);
+                }
                 $stmt->close();
 
                 // Keep role-specific profiles in sync if dept_id or program_id changes
@@ -169,7 +208,15 @@ $users = $conn->query("
                ELSE u.username
            END as display_name,
            d.title_diploma_program as dept_name,
-           s.program_id
+           s.program_id,
+           (SELECT al.action FROM audit_logs al 
+            WHERE al.user_id = u.user_id 
+            AND (al.action LIKE 'PRINT_%' OR al.action LIKE 'DOWNLOAD_%' OR al.action = 'VIEW_COR')
+            ORDER BY al.log_id DESC LIMIT 1) as last_doc_action,
+           (SELECT al.created_at FROM audit_logs al 
+            WHERE al.user_id = u.user_id 
+            AND (al.action LIKE 'PRINT_%' OR al.action LIKE 'DOWNLOAD_%' OR al.action = 'VIEW_COR')
+            ORDER BY al.log_id DESC LIMIT 1) as last_doc_time
     FROM users u
     LEFT JOIN students s ON u.user_id = s.user_id
     LEFT JOIN instructors i ON u.user_id = i.user_id
@@ -182,6 +229,76 @@ $users = $conn->query("
 $pageTitle = 'Manage Users';
 require_once '../includes/header.php';
 ?>
+<style>
+    .premium-card {
+        border-radius: 1rem;
+    }
+    .bg-dark-navy {
+        background-color: #0f172a !important;
+    }
+    @keyframes pulse-red {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(220, 53, 64, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+    }
+    .pulse-badge {
+        animation: pulse-red 2s infinite;
+    }
+    .users-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    /* Premium Action Buttons */
+    .btn-premium-edit {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 1.2rem;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50px;
+        color: #334155 !important;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+    .btn-premium-edit:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e0;
+        color: #1e293b !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
+
+    .btn-premium-delete {
+        width: 36px; height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50%;
+        color: #ef4444 !important;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border: none;
+        cursor: pointer;
+    }
+    .btn-premium-delete:hover {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+        color: #dc2626 !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+    }
+</style>
 
 <?php if (!empty($error)): ?>
     <?php echo showError($error); ?>
@@ -189,24 +306,24 @@ require_once '../includes/header.php';
 endif; ?>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-transparent border-0 p-4 d-flex justify-content-between align-items-center">
-        <h5 class="mb-0 fw-bold text-primary">
-            <i class="fas fa-user-shield me-2 text-accent-indigo"></i> System User Registry
+    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-user-shield me-2 text-info"></i> System User Registry
         </h5>
-        <button class="btn btn-primary rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addUserModal">
-            <i class="fas fa-plus-circle me-2"></i> Add New User
+        <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="fas fa-plus-circle me-1"></i> Add User
         </button>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover table-mobile-card align-middle overflow-hidden mb-0" id="usersTable">
-                <thead class="bg-light">
+            <table class="table table-hover align-middle mb-0 users-table" id="usersTable">
+                <thead>
                     <tr>
                         <th class="ps-4">ID</th>
-                        <th>Account Identity</th>
-                        <th>Role & Level</th>
-                        <th>Status & Activity</th>
-                        <th class="text-end pe-4">Control Actions</th>
+                        <th>ACCOUNT IDENTITY</th>
+                        <th>ROLE & DESIGNATION</th>
+                        <th>STATUS & ACTIVITY</th>
+                        <th class="text-end pe-4">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -217,8 +334,12 @@ endif; ?>
                         </td>
                         <td data-label="Account Identity">
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px;">
-                                    <i class="fas fa-user-circle fa-lg"></i>
+                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px; overflow: hidden;">
+                                    <?php if (!empty($user['profile_image'])): ?>
+                                        <img src="../uploads/profile_pics/<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-user-circle fa-lg"></i>
+                                    <?php endif; ?>
                                 </div>
                                 <div>
                                     <div class="fw-bold text-dark"><?php echo htmlspecialchars($user['display_name'] ?? 'N/A'); ?></div>
@@ -292,30 +413,60 @@ endif; ?>
                                         <?php echo !empty($user['last_login']) ? date('M d, Y h:i A', strtotime($user['last_login'])) : 'Never logged in'; ?>
                                     </div>
                                 <?php endif; ?>
+                                <div class="mt-1 text-muted" style="font-size: 0.65rem;">
+                                    <i class="fas fa-desktop me-1"></i> IP: <?php echo htmlspecialchars($user['last_ip'] ?? 'N/A'); ?>
+                                </div>
+                                <?php if (!empty($user['reset_requested'])): ?>
+                                    <div class="mb-2 text-start">
+                                        <span class="badge bg-danger pulse-badge rounded-pill px-2 py-1 shadow-sm" style="font-size: 0.65rem;">
+                                            <i class="fas fa-exclamation-triangle me-1"></i> RESET REQUESTED
+                                        </span>
+                                    </div>
+                                <?php endif; ?>
+                                <div class="mt-1 text-primary" style="font-size: 0.65rem; font-weight: 500;">
+                                    <i class="fas fa-file-alt me-1"></i> Doc: 
+                                    <span class="doc-activity">
+                                        <?php 
+                                            if ($user['last_doc_action']) {
+                                                $action = str_replace('_', ' ', $user['last_doc_action']);
+                                                $time = strtotime($user['last_doc_time']);
+                                                $diff = time() - $time;
+                                                if ($diff < 60) echo $action . ' just now';
+                                                elseif ($diff < 3600) echo $action . ' ' . floor($diff/60) . 'm ago';
+                                                elseif ($diff < 86400) echo $action . ' ' . floor($diff/3600) . 'h ago';
+                                                else echo $action . ' on ' . date('M d', $time);
+                                            } else {
+                                                echo 'No activity';
+                                            }
+                                        ?>
+                                    </span>
+                                </div>
                             </div>
                         </td>
                         <td class="text-end pe-4" data-label="Control Actions">
-                            <button class="btn btn-sm btn-light border text-primary rounded-pill me-1" onclick='editUser(<?php echo json_encode([
-        "user_id" => $user["user_id"],
-        "username" => $user["username"],
-        "role" => $user["role"],
-        "status" => $user["status"],
-        "dept_id" => $user["dept_id"],
-        "program_id" => $user["program_id"] ?? ""
-    ]); ?>)'>
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                            <?php if ($user['user_id'] !== getCurrentUserId()): ?>
-                            <form method="POST" class="d-inline" onsubmit="return confirmDelete('Are you sure you want to remove this user?');">
-                                <?php csrfField(); ?>
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($user['user_id'] ?? ''); ?>">
-                                <button type="submit" class="btn btn-sm btn-light border text-danger rounded-pill">
-                                    <i class="fas fa-trash-alt"></i>
+                            <div class="d-flex justify-content-end gap-2">
+                                <button class="btn-premium-edit" onclick='editUser(<?php echo json_encode([
+                                    "user_id" => $user["user_id"],
+                                    "username" => $user["username"],
+                                    "role" => $user["role"],
+                                    "status" => $user["status"],
+                                    "dept_id" => $user["dept_id"],
+                                    "program_id" => $user["program_id"] ?? "",
+                                    "profile_image" => $user["profile_image"] ?? ""
+                                ]); ?>)'>
+                                    <i class="fas fa-edit"></i> Edit
                                 </button>
-                            </form>
-                            <?php
-    endif; ?>
+                                <?php if ($user['user_id'] !== getCurrentUserId()): ?>
+                                <form method="POST" class="d-inline" onsubmit="return confirmDelete('Are you sure you want to remove this user?');">
+                                    <?php csrfField(); ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($user['user_id'] ?? ''); ?>">
+                                    <button type="submit" class="btn-premium-delete">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                     <?php
@@ -330,7 +481,7 @@ endwhile; ?>
 <div class="modal fade" id="addUserModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <form method="POST" autocomplete="off">
+            <form method="POST" autocomplete="off" enctype="multipart/form-data">
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="create">
                 <div class="modal-header">
@@ -430,6 +581,10 @@ endforeach; ?>
                             <option value="inactive">Inactive</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label">Profile Picture (Optional)</label>
+                        <input type="file" name="profile_image" class="form-control" accept="image/jpeg,image/png">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -444,7 +599,7 @@ endforeach; ?>
 <div class="modal fade" id="editUserModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <form method="POST" autocomplete="off">
+            <form method="POST" autocomplete="off" enctype="multipart/form-data">
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="user_id" id="edit_user_id">
@@ -498,6 +653,14 @@ endforeach; ?>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label d-block">Current Profile Picture</label>
+                        <div id="edit_image_preview" class="mb-2" style="width: 80px; height: 80px; border-radius: 12px; overflow: hidden; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-user fa-2x text-light"></i>
+                        </div>
+                        <label class="form-label">Update Picture (Optional)</label>
+                        <input type="file" name="profile_image" class="form-control" accept="image/jpeg,image/png">
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -626,6 +789,14 @@ function editUser(user) {
     document.getElementById('edit_dept_id').value = user.dept_id || '';
     document.getElementById('edit_program_id').value = user.program_id || '';
     
+    // Update image preview
+    const preview = document.getElementById('edit_image_preview');
+    if (user.profile_image) {
+        preview.innerHTML = `<img src="../uploads/profile_pics/${user.profile_image}" style="width: 100%; height: 100%; object-fit: cover;">`;
+    } else {
+        preview.innerHTML = `<i class="fas fa-user fa-2x text-light"></i>`;
+    }
+    
     toggleEditFields();
     
     userModal.show();
@@ -655,7 +826,6 @@ function updateUserStatuses() {
                     </span>
                 </div>`;
 
-                // Online/Offline Status
                 if (user.isOnline) {
                     html += `<span class="badge bg-success rounded-pill px-2 py-1 shadow-sm">
                         <i class="fas fa-signal me-1"></i> Online (${user.sessionDuration})
@@ -668,6 +838,13 @@ function updateUserStatuses() {
                         ${user.lastLogin}
                     </div>`;
                 }
+
+                html += `<div class="mt-1 text-muted" style="font-size: 0.65rem;">
+                    <i class="fas fa-desktop me-1"></i> IP: ${user.lastIP}
+                </div>
+                <div class="mt-1 text-primary" style="font-size: 0.65rem; font-weight: 500;">
+                    <i class="fas fa-file-alt me-1"></i> Doc: ${user.lastDoc}
+                </div>`;
 
                 container.innerHTML = html;
             }

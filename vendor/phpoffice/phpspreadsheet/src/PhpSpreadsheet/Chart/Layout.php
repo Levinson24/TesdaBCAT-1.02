@@ -101,12 +101,9 @@ class Layout
 
     /**
      * Create a new Layout.
-     *
-     * @param array<mixed> $layout
      */
     public function __construct(array $layout = [])
     {
-        /** @var array{layoutTarget?: string, xMode?: string, yMode?: string, x?: float, y?: float, w?:float, h?:float, dLblPos?: string, labelFont?: ?mixed, labelFontColor?: ?mixed, labelEffects?: ?mixed, numFmtCode?: string} $layout */
         if (isset($layout['layoutTarget'])) {
             $this->layoutTarget = $layout['layoutTarget'];
         }
@@ -158,7 +155,6 @@ class Layout
         }
     }
 
-    /** @param mixed[] $layout */
     private function initBoolean(array $layout, string $name): void
     {
         if (isset($layout[$name])) {
@@ -166,7 +162,6 @@ class Layout
         }
     }
 
-    /** @param mixed[] $layout */
     private function initColor(array $layout, string $name): void
     {
         if (isset($layout[$name]) && $layout[$name] instanceof ChartColor) {
@@ -453,13 +448,6 @@ class Layout
     public function getLabelFont(): ?Font
     {
         return $this->labelFont;
-    }
-
-    public function setLabelFont(?Font $labelFont): self
-    {
-        $this->labelFont = $labelFont;
-
-        return $this;
     }
 
     public function getLabelEffects(): ?Properties

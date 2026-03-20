@@ -3,21 +3,23 @@
  * Public Document Verification Portal
  * TESDA-BCAT Grade Management System
  */
+require_once 'config/database.php';
 require_once 'includes/functions.php';
-$conn = getDBConnection();
 
-$tid = isset($_GET['tid']) ? intval($_GET['tid']) : 0;
-$vHash = isset($_GET['v']) ? $_GET['v'] : '';
+$conn = getDBConnection();
 
 $isVerified = false;
 $document = null;
+$errorMsg = '';
+
+// 1. Handle GET (QR Code / Direct Link with Hash)
+$tid = isset($_GET['tid']) ? intval($_GET['tid']) : 0;
+$cid = isset($_GET['cid']) ? intval($_GET['cid']) : 0;
+$vHash = isset($_GET['v']) ? $_GET['v'] : '';
 
 if ($tid > 0 && !empty($vHash)) {
-    // Verify TOR hash
     $expectedHash = hash('sha256', 'BCAT_TRANSCRIPT_' . $tid);
-    
     if (hash_equals($expectedHash, $vHash)) {
-        // Fetch document details
         $stmt = $conn->prepare("
             SELECT t.*, s.first_name, s.last_name, s.student_no, p.program_name, d.title_diploma_program as dept_name, 'Transcript of Records' as doc_type
             FROM transcripts t
@@ -30,17 +32,11 @@ if ($tid > 0 && !empty($vHash)) {
         $stmt->execute();
         $document = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        
-        if ($document) {
-            $isVerified = ($document['status'] === 'official');
-        }
+        if ($document) $isVerified = ($document['status'] === 'official');
     }
-} elseif ($cid = (isset($_GET['cid']) ? intval($_GET['cid']) : 0)) {
-    // Verify COR hash
+} elseif ($cid > 0 && !empty($vHash)) {
     $expectedHash = hash('sha256', 'BCAT_COR_' . $cid);
-    
     if (hash_equals($expectedHash, $vHash)) {
-        // Fetch COR details
         $stmt = $conn->prepare("
             SELECT c.*, s.first_name, s.last_name, s.student_no, p.program_name, d.title_diploma_program as dept_name, 'Certificate of Registration' as doc_type
             FROM cors c
@@ -53,11 +49,56 @@ if ($tid > 0 && !empty($vHash)) {
         $stmt->execute();
         $document = $stmt->get_result()->fetch_assoc();
         $stmt->close();
-        
+        if ($document) $isVerified = true;
+        $tid = $cid; 
+    }
+}
+
+// 2. Handle POST (Manual Search)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ref_id'])) {
+    $refId = strtoupper(sanitizeInput($_POST['ref_id']));
+    $studentNo = sanitizeInput($_POST['student_no']);
+    
+    if (str_starts_with($refId, 'TOR-')) {
+        $id = intval(substr($refId, 4));
+        $stmt = $conn->prepare("
+            SELECT t.*, s.first_name, s.last_name, s.student_no, p.program_name, d.title_diploma_program as dept_name, 'Transcript of Records' as doc_type
+            FROM transcripts t
+            JOIN students s ON t.student_id = s.student_id
+            LEFT JOIN programs p ON s.program_id = p.program_id
+            LEFT JOIN departments d ON s.dept_id = d.dept_id
+            WHERE t.transcript_id = ? AND s.student_no = ?
+        ");
+        $stmt->bind_param("is", $id, $studentNo);
+        $stmt->execute();
+        $document = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
         if ($document) {
-            $isVerified = true; // CORs are official by generation
+            $isVerified = ($document['status'] === 'official');
+            $tid = $id;
         }
-        $tid = $cid; // Set tid to cid for display consistency
+    } elseif (str_starts_with($refId, 'COR-')) {
+        $id = intval(substr($refId, 4));
+        $stmt = $conn->prepare("
+            SELECT c.*, s.first_name, s.last_name, s.student_no, p.program_name, d.title_diploma_program as dept_name, 'Certificate of Registration' as doc_type
+            FROM cors c
+            JOIN students s ON c.student_id = s.student_id
+            LEFT JOIN programs p ON s.program_id = p.program_id
+            LEFT JOIN departments d ON s.dept_id = d.dept_id
+            WHERE c.cor_id = ? AND s.student_no = ?
+        ");
+        $stmt->bind_param("is", $id, $studentNo);
+        $stmt->execute();
+        $document = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($document) {
+            $isVerified = true;
+            $tid = $id;
+        }
+    }
+    
+    if (!$document) {
+        $errorMsg = "No record found for the provided Reference ID and Student Number.";
     }
 }
 ?>
@@ -72,9 +113,32 @@ if ($tid > 0 && !empty($vHash)) {
     <style>
         body { background-color: #f8fafc; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
         .verify-card { max-width: 500px; margin: 80px auto; border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-        .gradient-navy { background: linear-gradient(135deg, #1a3a5c 0%, #0d1b2a 100%); }
+        .gradient-navy { background: linear-gradient(135deg, #002366 0%, #001a4d 100%); }
         .success-accent { color: #1a8754; }
         .failed-accent { color: #dc3545; }
+        .navbar { background: #0038A8 !important; }
+        .btn-primary { background: #0038A8 !important; border: none; }
+        .btn-primary:hover { background: #002e8a !important; }
+        .bg-primary { background: #0038A8 !important; }
+        .text-primary { color: #0038A8 !important; }
+
+        /* ──── ELEGANT SCROLLBARS ──── */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.4);
+            border-radius: 4px;
+            transition: background 0.3s ease;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.7);
+        }
     </style>
 </head>
 <body>
@@ -115,25 +179,72 @@ if ($tid > 0 && !empty($vHash)) {
                     </div>
                     
                     <label class="text-muted small text-uppercase fw-bold mb-1">Program</label>
-                    <div class="fw-bold mb-3"><?php echo htmlspecialchars($document['program_name']); ?></div>
+                    <div class="fw-bold mb-3"><?php echo htmlspecialchars($document['program_name'] ?? 'N/A'); ?></div>
                     
                     <label class="text-muted small text-uppercase fw-bold mb-1">Date Issued</label>
                     <div class="fw-bold"><?php echo date('F d, Y', strtotime($document['date_generated'])); ?></div>
                 </div>
                 
                 <div class="mt-5 text-center">
-                    <small class="text-muted">Verification ID: <?php echo str_pad($tid, 8, '0', STR_PAD_LEFT); ?></small>
+                    <div class="text-muted small mb-3">Verification ID: <?php echo str_pad($tid, 8, '0', STR_PAD_LEFT); ?></div>
+                    <a href="verify.php" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                        <i class="fas fa-search me-1"></i> Verify Another Document
+                    </a>
                 </div>
 
             <?php else: ?>
-                <div class="text-center">
-                    <div class="d-inline-block p-4 rounded-circle bg-danger bg-opacity-10 mb-3">
-                        <i class="fas fa-times-circle fa-4x text-danger"></i>
+                <?php if ($errorMsg): ?>
+                <div class="alert alert-danger px-4 py-3 border-0 shadow-sm mb-4" style="border-radius: 1rem;">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle me-3 fa-2x opacity-75"></i>
+                        <div>
+                            <div class="fw-bold">Verification Failed</div>
+                            <div class="small opacity-75">No record found. Please ensure the Reference ID and Student Number match the printed document exactly.</div>
+                        </div>
                     </div>
-                    <h3 class="fw-bold text-danger">INVALID DOCUMENT</h3>
-                    <p class="text-muted">Either the verification link is broken or the document has not been registered in our system.</p>
-                    <a href="index.php" class="btn btn-primary rounded-pill px-4 mt-3">Back to Login</a>
                 </div>
+                <?php endif; ?>
+
+                <div class="text-center mb-4">
+                    <div class="mb-3">
+                        <i class="fas fa-file-contract fa-3x text-primary opacity-25"></i>
+                    </div>
+                    <h5 class="fw-bold">Manual Verification</h5>
+                    <p class="text-muted small">Enter the document details as printed on the official record.</p>
+                </div>
+
+                <form method="POST" action="verify.php">
+                    <div class="mb-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Reference ID</label>
+                        <div class="input-group border rounded-3 p-1 shadow-sm bg-white">
+                            <span class="input-group-text bg-transparent border-0 text-primary">
+                                <i class="fas fa-hashtag"></i>
+                            </span>
+                            <input type="text" name="ref_id" class="form-control border-0 bg-transparent" placeholder="e.g. TOR-00000001" value="<?php echo isset($_POST['ref_id']) ? htmlspecialchars($_POST['ref_id']) : ''; ?>" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label text-muted small fw-bold text-uppercase">Student ID / Number</label>
+                        <div class="input-group border rounded-3 p-1 shadow-sm bg-white">
+                            <span class="input-group-text bg-transparent border-0 text-primary">
+                                <i class="fas fa-id-card"></i>
+                            </span>
+                            <input type="text" name="student_no" class="form-control border-0 bg-transparent" placeholder="e.g. STU-00000" required>
+                        </div>
+                        <div class="form-text small px-2">Example format: STU-XXXXX or 2024-XXXXX</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-sm">
+                        <i class="fas fa-search me-2"></i> Verify Authenticity
+                    </button>
+                    
+                    <div class="text-center mt-4">
+                        <a href="index.php" class="text-muted text-decoration-none small">
+                            <i class="fas fa-arrow-left me-1"></i> Return to Login
+                        </a>
+                    </div>
+                </form>
             <?php endif; ?>
         </div>
         

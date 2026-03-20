@@ -210,83 +210,67 @@ endwhile; ?>
 <?php if (isset($section)): ?>
 <form method="POST">
     <?php csrfField(); ?>
-<div class="card premium-card border-0 shadow-sm mb-4 overflow-hidden">
-    <div class="card-header gradient-navy text-white p-4 border-0">
-        <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold">
-                <i class="fas fa-info-circle me-2"></i> Section Intelligence
-            </h5>
-            <div class="d-flex gap-2">
-                <a href="grade_import.php?section_id=<?php echo $sectionId; ?>" class="btn btn-sm glass-effect text-white border border-white border-opacity-25 px-3">
-                    <i class="fas fa-file-import me-1"></i> Bulk Import Excel
-                </a>
-                <span class="badge glass-effect text-white px-3 py-2 rounded-pill border border-white border-opacity-25">
-                <?php echo htmlspecialchars($section['semester'] . ' SY ' . $section['school_year']); ?>
-            </span>
-        </div>
-    </div>
-    <div class="card-body p-4">
-        <div class="row g-4">
-            <div class="col-md-6 border-end">
+<div class="card premium-card border-0 shadow-sm mb-4">
+    <div class="card-body p-0">
+        <div class="row g-0">
+            <div class="col-lg-8 p-4">
                 <div class="d-flex align-items-center mb-3">
-                    <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary me-3" style="width: 45px; height: 45px;">
-                        <i class="fas fa-book"></i>
+                    <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary me-3" style="width: 50px; height: 50px;">
+                        <i class="fas fa-layer-group"></i>
                     </div>
                     <div>
-                        <div class="text-muted small text-uppercase fw-bold">Subject Info</div>
-                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($section['course_code'] . ' - ' . $section['course_name']); ?></div>
+                        <h5 class="mb-0 fw-bold text-dark">Section Intelligence</h5>
+                        <p class="text-muted small mb-0">Registry configuration and session details</p>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-6 ps-md-4">
-                <div class="row">
-                    <div class="col-6 mb-3">
-                        <div class="text-muted small text-uppercase fw-bold">Class ID</div>
-                        <div class="badge bg-light text-primary border border-primary border-opacity-10 px-3"><?php echo htmlspecialchars($section['class_code'] ?? 'N/A'); ?></div>
+                
+                <div class="row g-4 mt-2">
+                    <div class="col-md-6 border-end border-light">
+                        <div class="text-muted small text-uppercase fw-bold mb-1 ls-1">Subject Description</div>
+                        <div class="fw-bold text-dark fs-5"><?php echo htmlspecialchars($section['course_name']); ?></div>
+                        <div class="text-primary fw-bold small"><?php echo htmlspecialchars($section['course_code']); ?></div>
                     </div>
-                    <div class="col-6 mb-3">
-                        <div class="text-muted small text-uppercase fw-bold">Section</div>
-                        <div class="fw-bold"><?php echo htmlspecialchars($section['section_name'] ?? ''); ?></div>
-                    </div>
-                    <div class="col-12 mt-2">
-                        <div class="card bg-light border-0 shadow-sm">
-                            <div class="card-body p-2 px-3">
-                                <div class="row align-items-center mb-1">
-                                    <div class="col-12">
-                                        <div class="text-primary fw-bold" style="font-size: 0.70rem; text-transform: uppercase;">
-                                            <i class="fas fa-sliders-h me-1"></i> Class Session Parameters
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row align-items-center pb-1">
-                                    <div class="col-5 border-end border-primary-subtle">
-                                        <div class="text-muted fw-bold mb-1" style="font-size: 0.65rem; text-transform: uppercase;">Lecture Allocation</div>
-                                        <div class="d-flex gap-2">
-                                            <div class="input-group input-group-sm w-100">
-                                                <input type="number" name="actual_lec_hrs" class="form-control text-center px-1 border-primary-subtle fw-bold" value="<?php echo floatval($section['actual_lec_hrs'] ?? $section['lec_hrs']); ?>" step="0.5" title="Lecture Hours">
-                                                <span class="input-group-text px-1 bg-white border-primary-subtle" style="font-size: 0.65rem;">h</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-5 border-end border-primary-subtle ps-3">
-                                        <div class="text-muted fw-bold mb-1" style="font-size: 0.65rem; text-transform: uppercase;">Lab Allocation</div>
-                                        <div class="d-flex gap-2">
-                                            <div class="input-group input-group-sm w-100">
-                                                <input type="number" name="actual_lab_hrs" class="form-control text-center px-1 border-primary-subtle fw-bold" value="<?php echo floatval($section['actual_lab_hrs'] ?? $section['lab_hrs']); ?>" step="0.5" title="Lab Hours">
-                                                <span class="input-group-text px-1 bg-white border-primary-subtle" style="font-size: 0.65rem;">h</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-2 d-flex align-items-center justify-content-center">
-                                        <div class="text-muted text-center" style="font-size: 0.60rem; line-height: 1.2;">
-                                            <i class="fas fa-save mb-1 text-primary" style="font-size: 0.8rem;"></i><br>
-                                            Saved on<br>Finalize
-                                        </div>
-                                    </div>
-                                </div>
+                    <div class="col-md-6 ps-md-4">
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <div class="text-muted small text-uppercase fw-bold mb-1 ls-1">Class ID</div>
+                                <div class="badge bg-indigo bg-opacity-10 text-indigo border border-indigo border-opacity-10 px-3"><?php echo htmlspecialchars($section['class_code'] ?? 'N/A'); ?></div>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="text-muted small text-uppercase fw-bold mb-1 ls-1">Section</div>
+                                <div class="fw-bold text-dark"><?php echo htmlspecialchars($section['section_name'] ?? ''); ?></div>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            <div class="col-lg-4 bg-light bg-opacity-50 p-4 rounded-end">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="text-muted small text-uppercase fw-bold ls-1"><i class="fas fa-sliders-h me-1 text-primary"></i> Session Parameters</div>
+                    <span class="badge bg-white text-dark shadow-sm border-0 px-3 py-2 rounded-pill small">
+                        <?php echo htmlspecialchars($section['semester'] . ' SY ' . $section['school_year']); ?>
+                    </span>
+                </div>
+                
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Lecture Hrs</label>
+                        <div class="input-group input-group-sm mb-2 shadow-sm">
+                            <input type="number" name="actual_lec_hrs" class="form-control text-center bg-white border-0 fw-bold" value="<?php echo floatval($section['actual_lec_hrs'] ?? $section['lec_hrs']); ?>" step="0.5">
+                            <span class="input-group-text bg-white border-0 text-muted small">h</span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-bold text-muted mb-1">Lab Hrs</label>
+                        <div class="input-group input-group-sm mb-2 shadow-sm">
+                            <input type="number" name="actual_lab_hrs" class="form-control text-center bg-white border-0 fw-bold" value="<?php echo floatval($section['actual_lab_hrs'] ?? $section['lab_hrs']); ?>" step="0.5">
+                            <span class="input-group-text bg-white border-0 text-muted small">h</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 d-flex align-items-center text-primary small bg-primary bg-opacity-10 p-2 rounded-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span style="font-size: 0.75rem;">Changes are saved upon finalizing the registry.</span>
                 </div>
             </div>
         </div>
@@ -296,10 +280,16 @@ endwhile; ?>
 <div class="row mb-5">
     <div class="col-lg-8">
         <div class="card premium-card border-0 shadow-sm h-100">
-            <div class="card-header bg-white p-4 border-0">
+            <div class="card-header bg-white p-4 border-0 d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-bold text-dark">
                     <i class="fas fa-edit me-2 text-primary"></i> Academic Performance Entry
                 </h5>
+                <div class="search-box" style="width: 250px;">
+                    <div class="input-group input-group-sm shadow-sm">
+                        <span class="input-group-text bg-white border-0"><i class="fas fa-search text-muted"></i></span>
+                        <input type="text" id="studentSearch" class="form-control border-0 px-2" placeholder="Search student...">
+                    </div>
+                </div>
             </div>
             <div class="card-body p-0">
                 <!-- Table will go here -->
@@ -452,8 +442,26 @@ endwhile; ?>
                 </div>
                 
                 <hr class="my-4 opacity-10">
-                <div class="alert alert-warning border-0 small py-2 mb-0">
-                    <i class="fas fa-info-circle me-1"></i> Charts update as you type. Ensure all grades are finalized before submission.
+                
+                <?php if ($students->num_rows > 0): ?>
+                <div class="d-grid gap-2">
+                    <button type="submit" name="submit_grades" class="btn btn-primary btn-lg rounded-pill shadow-sm py-3 fw-bold mb-2">
+                        <i class="fas fa-check-double me-2"></i> Finalize & Submit
+                    </button>
+                    <a href="grade_import.php?section_id=<?php echo $sectionId; ?>" class="btn btn-outline-info rounded-pill border-light shadow-sm py-2 fw-bold text-dark">
+                        <i class="fas fa-file-import me-1"></i> Bulk Import Excel
+                    </a>
+                </div>
+                <?php endif; ?>
+
+                <div class="alert alert-info border-0 small py-3 mb-0 mt-3 rounded-4">
+                    <div class="d-flex">
+                        <i class="fas fa-info-circle me-2 mt-1"></i>
+                        <div>
+                            <strong>Finalization Rule:</strong><br>
+                            Ensure all grades are correctly entered. Finalizing will lock the entries for this section.
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -558,6 +566,24 @@ document.addEventListener('DOMContentLoaded', function() {
             updateAnalytics();
         });
     });
+
+    // Student Search Filter
+    const studentSearch = document.getElementById('studentSearch');
+    if (studentSearch) {
+        studentSearch.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            const rows = document.querySelectorAll('tbody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    row.style.display = '';
+                } else if (!row.querySelector('td[colspan]')) { // Don't hide "No Students" row
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
 
     // Run once on load
     updateAnalytics();

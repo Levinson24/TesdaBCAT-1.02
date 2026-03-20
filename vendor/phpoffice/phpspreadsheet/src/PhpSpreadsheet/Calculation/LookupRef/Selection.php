@@ -37,7 +37,7 @@ class Selection
         } else {
             return ExcelError::VALUE();
         }
-        $chosenEntry = (int) floor($chosenEntry);
+        $chosenEntry = floor($chosenEntry);
         if (($chosenEntry < 0) || ($chosenEntry > $entryCount)) {
             return ExcelError::VALUE();
         }

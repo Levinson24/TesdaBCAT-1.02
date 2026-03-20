@@ -112,13 +112,14 @@ function authenticateUser($username, $password)
     // Verify password
     if (password_verify($password, $user['password'])) {
         // Reset failed attempts and update login timestamps
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
         $updateStmt = $conn->prepare("
             UPDATE users 
             SET last_login = NOW(), session_start = NOW(), last_activity = NOW(),
-                failed_attempts = 0, lockout_until = NULL
+                failed_attempts = 0, lockout_until = NULL, last_ip = ?
             WHERE user_id = ?
         ");
-        $updateStmt->bind_param("i", $user['user_id']);
+        $updateStmt->bind_param("si", $ip, $user['user_id']);
         $updateStmt->execute();
         $updateStmt->close();
 
@@ -173,6 +174,7 @@ function createUserSession($user)
     $_SESSION['role'] = $user['role'];
     $_SESSION['logged_in'] = true;
     $_SESSION['login_time'] = time();
+    $_SESSION['last_activity_time'] = time();
     
     // Security Fingerprint (IP + User Agent)
     // This prevents simple bypass scripts from "creating" a session without a valid fingerprint
@@ -223,6 +225,29 @@ function requireLogin($redirectUrl = '../index.php')
         header("Location: $redirectUrl");
         exit();
     }
+
+    // 10-Minute Inactivity Timeout Check
+    $timeout_duration = 600; // 600 seconds = 10 minutes
+    if (isset($_SESSION['last_activity_time']) && (time() - $_SESSION['last_activity_time']) > $timeout_duration) {
+        $userId = $_SESSION['user_id'] ?? 0;
+        logAudit($userId, 'TIMEOUT', 'sessions', $userId, null, 'User session timed out due to 10 minutes of inactivity');
+        
+        // Update database to explicitly clear active session footprint
+        $conn = getDBConnection();
+        $stmt = $conn->prepare("UPDATE users SET session_start = NULL, last_activity = NULL WHERE user_id = ?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $stmt->close();
+
+        session_unset();
+        session_destroy();
+        
+        header("Location: $redirectUrl?error=timeout");
+        exit();
+    }
+    
+    // Refresh last activity for current request
+    $_SESSION['last_activity_time'] = time();
 
     // Verify Session Fingerprint
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
@@ -319,7 +344,7 @@ function getUserProfile($userId, $role)
     switch ($role) {
         case 'student':
             $stmt = $conn->prepare("
-                SELECT s.*, u.username, u.status 
+                SELECT s.*, u.username, u.status, u.profile_image 
                 FROM students s 
                 JOIN users u ON s.user_id = u.user_id 
                 WHERE s.user_id = ?
@@ -328,7 +353,7 @@ function getUserProfile($userId, $role)
 
         case 'instructor':
             $stmt = $conn->prepare("
-                SELECT i.*, u.username, u.status 
+                SELECT i.*, u.username, u.status, u.profile_image 
                 FROM instructors i 
                 JOIN users u ON i.user_id = u.user_id 
                 WHERE i.user_id = ?
@@ -362,8 +387,9 @@ function getUserProfile($userId, $role)
 
 /**
  * Logout user
+ * @param bool $redirect Whether to automatically redirect to index.php
  */
-function logout()
+function logout($redirect = true)
 {
     startSession();
 
@@ -383,9 +409,11 @@ function logout()
     session_unset();
     session_destroy();
 
-    // Redirect to login
-    header("Location: index.php");
-    exit();
+    // Optional Redirect
+    if ($redirect) {
+        header("Location: index.php");
+        exit();
+    }
 }
 
 /**

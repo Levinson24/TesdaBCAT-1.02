@@ -125,44 +125,185 @@ $instructors = $conn->query("
     ORDER BY i.created_at DESC
 ");
 ?>
+<style>
+    .premium-card { border-radius: 1rem; }
+    .bg-dark-navy { background-color: #002366 !important; }
+    .instructors-table thead th {
+        background-color: #f8fafc;
+        color: #64748b;
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.70rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
+        border-top: none;
+    }
+    .instructors-table tbody td {
+        padding: 1.25rem 1rem;
+        vertical-align: middle;
+        color: #334155;
+        font-size: 0.85rem;
+    }
+    
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .status-pill-active { background: #ecfdf5; color: #065f46; border: 1px solid #d1fae5; }
+    .status-pill-inactive { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-chalkboard-teacher"></i> Instructor Management</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Add Instructor
+    /* Premium Action Buttons */
+    .btn-premium-view, .btn-premium-edit, .btn-premium-delete {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+    }
+    .btn-premium-view {
+        background-color: #f0f9ff;
+        color: #0369a1 !important;
+    }
+    .btn-premium-view:hover {
+        background-color: #0369a1;
+        color: #fff !important;
+        box-shadow: 0 4px 6px rgba(3, 105, 161, 0.2);
+    }
+    .btn-premium-edit {
+        background-color: #eff6ff;
+        color: #2563eb !important;
+    }
+    .btn-premium-edit:hover {
+        background-color: #2563eb;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+    .btn-premium-delete {
+        background-color: #fef2f2;
+        color: #ef4444 !important;
+    }
+    .btn-premium-delete:hover {
+        background-color: #ef4444;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+    }
+
+    /* Modal Profile Styles */
+    .profile-info-label {
+        font-weight: 600;
+        color: #64748b;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.25rem;
+    }
+    .profile-info-value {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #1e293b;
+        margin-bottom: 0;
+    }
+    .profile-item {
+        background: #f8fafc;
+        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        border: 1px solid #f1f5f9;
+        height: 100%;
+    }
+    .profile-section-title {
+        color: #0038A8;
+        font-size: 0.9rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        margin-top: 1rem;
+    }
+    .profile-section-title i {
+        width: 28px;
+        height: 28px;
+        background: rgba(79, 70, 229, 0.1);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        margin-right: 10px;
+    }
+</style>
+
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-chalkboard-teacher me-2 text-warning"></i> Instructor Management
+        </h5>
+        <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addModal">
+            <i class="fas fa-plus-circle me-1"></i> Add Instructor
         </button>
     </div>
     <div class="card-body">
-        <table class="table table-hover data-table">
-            <thead>
-                <tr><th>Name</th><th>Program/Specialization</th><th>Contact</th><th>Email</th><th>Status</th><th>Actions</th></tr>
-            </thead>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 instructors-table data-table">
+                <thead>
+                    <tr>
+                        <th class="ps-4">NAME</th>
+                        <th>PROGRAM / SPECIALIZATION</th>
+                        <th>CONTACT</th>
+                        <th>EMAIL</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-4">ACTIONS</th>
+                    </tr>
+                </thead>
             <tbody>
                 <?php while ($i = $instructors->fetch_assoc()): ?>
                 <tr>
-                    <td><?php echo htmlspecialchars(($i['first_name'] ?? '') . (($i['middle_name'] ?? '') ? ' ' . $i['middle_name'] : '') . ' ' . ($i['last_name'] ?? '')); ?></td>
+                    <td class="ps-4"><?php echo htmlspecialchars(($i['first_name'] ?? '') . (($i['middle_name'] ?? '') ? ' ' . $i['middle_name'] : '') . ' ' . ($i['last_name'] ?? '')); ?></td>
                     <td>
-                        <div><b>Program:</b> <?php echo htmlspecialchars($i['dept_name'] ?? 'Unassigned'); ?></div>
-                        <div class="small text-muted"><b>Spec:</b> <?php echo htmlspecialchars($i['specialization'] ?? 'N/A'); ?></div>
+                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($i['dept_name'] ?? 'Unassigned'); ?></div>
+                        <div class="small text-muted">Spec: <?php echo htmlspecialchars($i['specialization'] ?? 'N/A'); ?></div>
                     </td>
                     <td><?php echo htmlspecialchars($i['contact_number'] ?? 'N/A'); ?></td>
                     <td><?php echo htmlspecialchars($i['email'] ?? 'N/A'); ?></td>
-                    <td><span class="badge bg-<?php echo $i['status'] === 'active' ? 'success' : 'secondary'; ?>"><?php echo ucfirst($i['status']); ?></span></td>
-                    <td class="text-nowrap">
-                        <button class="btn btn-sm btn-info" onclick='editInstructor(<?php echo json_encode($i); ?>)' title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <?php if (getCurrentUserRole() === 'registrar'): ?>
-                        <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this instructor? This will also delete their user account.');">
-                            <?php csrfField(); ?>
-                            <input type="hidden" name="action" value="delete">
-                            <input type="hidden" name="instructor_id" value="<?php echo $i['instructor_id']; ?>">
-                            <button type="submit" class="btn btn-sm btn-danger shadow-sm rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;" title="Delete">
-                                <i class="fas fa-trash-alt" style="font-size: 0.8rem;"></i>
-                            </button>
-                        </form>
+                    <td>
+                        <?php if (($i['status'] ?? 'active') === 'active'): ?>
+                            <div class="status-pill status-pill-active">
+                                <div class="status-dot" style="background: #22c55e;"></div> Active
+                            </div>
+                        <?php else: ?>
+                            <div class="status-pill status-pill-inactive">
+                                <div class="status-dot" style="background: #94a3b8;"></div> Inactive
+                            </div>
                         <?php endif; ?>
+                    </td>
+                    <td class="text-end pe-4">
+                        <div class="d-flex justify-content-end gap-2">
+                            <button class="btn-premium-view" onclick='viewInstructor(<?php echo json_encode($i); ?>)' title="View Full Profile">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn-premium-edit" onclick='editInstructor(<?php echo json_encode($i); ?>)' title="Edit Profile">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <?php if (getCurrentUserRole() === 'registrar'): ?>
+                            <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this instructor? This will also delete their user account.');">
+                                <?php csrfField(); ?>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="instructor_id" value="<?php echo $i['instructor_id']; ?>">
+                                <button type="submit" class="btn-premium-delete" title="Delete Profile">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                     </td>
                 </tr>
                 <?php
@@ -181,9 +322,9 @@ endwhile; ?>
             <form method="POST">
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5>Add Instructor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-chalkboard-teacher me-2 text-warning"></i>Add Instructor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info py-2">
@@ -212,8 +353,7 @@ endwhile; ?>
                             <label>Diploma Program</label>
                             <select name="dept_id" class="form-select" required>
                                 <option value="">-- Select Diploma Program --</option>
-                                <?php foreach ($departments_list as $dept): ?>
-                                    <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program']); ?></option>
+                                <?php foreach ($departments_list as $dept): ?>                                    <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program']); ?></option>
                                 <?php
 endforeach; ?>
                             </select>
@@ -234,8 +374,11 @@ endforeach; ?>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Create</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-plus-circle me-1"></i> Create Instructor
+                    </button>
                 </div>
             </form>
         </div>
@@ -250,9 +393,9 @@ endforeach; ?>
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="instructor_id" id="edit_instructor_id">
-                <div class="modal-header">
-                    <h5>Edit Instructor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-user-edit me-2 text-warning"></i>Edit Instructor</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -309,17 +452,137 @@ endforeach; ?>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Update</button>
+                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-save me-1"></i> Update Instructor
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Removing legacy datalist -->
+<!-- View Profile Modal -->
+<div class="modal fade" id="viewModal">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                <div class="d-flex align-items-center">
+                    <div class="bg-white bg-opacity-10 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                        <i class="fas fa-id-card text-info"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold" id="view_full_name">Instructor Profile</h5>
+                        <small class="text-info opacity-75" id="view_id_no"></small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-4">
+                    <!-- Personal Info -->
+                    <div class="col-lg-6">
+                        <h6 class="profile-section-title">
+                            <i class="fas fa-user"></i> PERSONAL INFORMATION
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Full Name</div>
+                                    <div class="profile-info-value" id="disp_full_name"></div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Date of Birth</div>
+                                    <div class="profile-info-value" id="disp_dob"></div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Contact No.</div>
+                                    <div class="profile-info-value" id="disp_contact"></div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Email Address</div>
+                                    <div class="profile-info-value" id="disp_email"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Professional Info -->
+                    <div class="col-lg-6">
+                        <h6 class="profile-section-title">
+                            <i class="fas fa-briefcase"></i> ACADEMIC ASSIGNMENT
+                        </h6>
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Diploma Program / Dept</div>
+                                    <div class="profile-info-value fw-bold text-primary" id="disp_dept"></div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Specialization</div>
+                                    <div class="profile-info-value" id="disp_specialization"></div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="profile-item">
+                                    <div class="profile-info-label">Account Status</div>
+                                    <div class="profile-info-value" id="disp_status"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light border-0 py-3">
+                <button class="btn btn-primary rounded-pill px-4" onclick="initiateEditFromView()">
+                    <i class="fas fa-edit me-1"></i> Edit Profile
+                </button>
+                <button class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <script>
+let currentInstructorData = null;
+
+function viewInstructor(data) {
+    currentInstructorData = data;
+    document.getElementById('view_full_name').innerText = (data.first_name || '') + ' ' + (data.last_name || '');
+    document.getElementById('view_id_no').innerText = 'ID: ' + (data.instructor_id_no || 'N/A');
+    
+    document.getElementById('disp_full_name').innerText = (data.first_name || '') + (data.middle_name ? ' ' + data.middle_name : '') + ' ' + (data.last_name || '');
+    document.getElementById('disp_dob').innerText = data.date_of_birth ? new Date(data.date_of_birth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A';
+    document.getElementById('disp_contact').innerText = data.contact_number || 'N/A';
+    document.getElementById('disp_email').innerText = data.email || 'N/A';
+    document.getElementById('disp_dept').innerText = data.dept_name || 'Unassigned';
+    document.getElementById('disp_specialization').innerText = data.specialization || 'N/A';
+    
+    const status = data.status || 'active';
+    const statusHTML = status === 'active' 
+        ? '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3"><i class="fas fa-check-circle me-1"></i> Active</span>'
+        : '<span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3"><i class="fas fa-times-circle me-1"></i> Inactive</span>';
+    document.getElementById('disp_status').innerHTML = statusHTML;
+    
+    new bootstrap.Modal(document.getElementById('viewModal')).show();
+}
+
+function initiateEditFromView() {
+    if (currentInstructorData) {
+        bootstrap.Modal.getInstance(document.getElementById('viewModal')).hide();
+        editInstructor(currentInstructorData);
+    }
+}
+
 function editInstructor(data) {
     document.getElementById('edit_instructor_id').value = data.instructor_id;
     document.getElementById('edit_first_name').value = data.first_name;

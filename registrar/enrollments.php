@@ -99,8 +99,8 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_PO
     $checkGrades = $conn->prepare("SELECT grade_id FROM grades WHERE enrollment_id = ?");
     $checkGrades->bind_param("i", $enrollmentId);
     $checkGrades->execute();
-    if ($checkGrades->get_result()->num_rows > 0) {
-        redirectWithMessage('enrollments.php', 'Cannot unenroll student: Grades have already been recorded for this subject.', 'danger');
+    if ($checkGrades->get_result()->num_rows > 0 && !hasRole(['registrar', 'admin', 'dept_head'])) {
+        redirectWithMessage('enrollments.php', 'Cannot unenroll student because grades have already been recorded for this enrollment.', 'warning');
     }
     $checkGrades->close();
 
@@ -128,7 +128,7 @@ $additionalCSS = '
     }
     .select2-selection__rendered {
         line-height: 35px !important;
-        color: #1a3a5c !important;
+        color: #0038A8 !important;
         font-weight: 500 !important;
     }
     .select2-selection__arrow {
@@ -138,6 +138,37 @@ $additionalCSS = '
         border-radius: 12px !important;
         border: 1px solid #dee2e6 !important;
         box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+    }
+    /* Premium Action Buttons */
+    .btn-premium-print, .btn-premium-delete {
+        width: 32px; height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+        padding: 0;
+        text-decoration: none !important;
+    }
+    .btn-premium-print {
+        background-color: #f0f9ff;
+        color: #0369a1 !important;
+    }
+    .btn-premium-print:hover {
+        background-color: #0369a1;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(3, 105, 161, 0.1);
+    }
+    .btn-premium-delete {
+        background-color: #fef2f2;
+        color: #ef4444 !important;
+    }
+    .btn-premium-delete:hover {
+        background-color: #ef4444;
+        color: #fff !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
     }
 </style>';
 
@@ -183,15 +214,15 @@ $progWhere = $isStaff ? " AND p.dept_id = $deptId" : "";
 $programs = $conn->query("SELECT p.program_id, p.program_name, d.title_diploma_program FROM programs p JOIN departments d ON p.dept_id = d.dept_id WHERE p.status = 'active' $progWhere ORDER BY p.program_name ASC");
 ?>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-user-plus"></i> Enrollment Management</h5>
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2"><i class="fas fa-user-plus me-2 text-warning"></i> Enrollment Management</h5>
         <div class="d-flex gap-2">
-            <a href="bulk_enroll.php" class="btn btn-light btn-sm text-primary fw-600">
+            <a href="bulk_enroll.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold border-0">
                 <i class="fas fa-users-cog me-1"></i> Bulk Enroll
             </a>
-            <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-                <i class="fas fa-plus"></i> Enroll Student
+            <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus-circle me-1"></i> Enroll Student
             </button>
         </div>
     </div>
@@ -209,21 +240,22 @@ $programs = $conn->query("SELECT p.program_id, p.program_name, d.title_diploma_p
                     <td><?php echo htmlspecialchars($e['section_name'] ?? ''); ?></td>
                     <td><?php echo htmlspecialchars(($e['semester'] ?? '') . ' ' . ($e['school_year'] ?? '')); ?></td>
                     <td><?php echo formatDate($e['enrollment_date']); ?></td>
-                    <td class="text-nowrap">
-                        <a href="cor_print.php?student_id=<?php echo $e['student_id']; ?>" target="_blank" class="btn btn-sm btn-info" title="Print COR">
-                            <i class="fas fa-print me-1"></i> COR
-                        </a>
-                        <?php if (getCurrentUserRole() === 'registrar'): ?>
-                        <form method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to unenroll this student? This will remove them from the class list.')">
-                            <?php csrfField(); ?>
-                            <input type="hidden" name="action" value="delete_enrollment">
-                            <input type="hidden" name="enrollment_id" value="<?php echo $e['enrollment_id']; ?>">
-                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Unenroll">
-                                <i class="fas fa-user-minus"></i>
-                            </button>
-                        </form>
-                        <?php
-    endif; ?>
+                    <td class="text-nowrap pe-4">
+                        <div class="d-flex justify-content-end gap-2">
+                            <a href="cor_print.php?student_id=<?php echo $e['student_id']; ?>" target="_blank" class="btn-premium-print" title="Print COR">
+                                <i class="fas fa-print"></i>
+                            </a>
+                            <?php if (getCurrentUserRole() === 'registrar'): ?>
+                            <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to unenroll this student? This will remove them from the class list.')">
+                                <?php csrfField(); ?>
+                                <input type="hidden" name="action" value="delete_enrollment">
+                                <input type="hidden" name="enrollment_id" value="<?php echo $e['enrollment_id']; ?>">
+                                <button type="submit" class="btn-premium-delete" title="Unenroll">
+                                    <i class="fas fa-user-minus"></i>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
                     </td></tr>
                 <?php
 endwhile; ?>
@@ -237,10 +269,10 @@ endwhile; ?>
         <form method="POST">
             <?php csrfField(); ?>
             <input type="hidden" name="action" value="enroll">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5>Enroll Student</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
+                    <h5 class="mb-0 fw-bold"><i class="fas fa-user-plus me-2 text-warning"></i>Enroll Student</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
@@ -285,8 +317,11 @@ endwhile; ?>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">Enroll</button>
+                <div class="modal-footer bg-light border-0 py-3">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
+                        <i class="fas fa-check-circle me-1"></i> Confirm Enrollment
+                    </button>
                 </div>
             </div>
         </form>
@@ -354,7 +389,7 @@ $(document).ready(function() {
                 sectionSelect.find('option').each(function() {
                     const sectionProgId = $(this).data('program');
                     if (sectionProgId && sectionProgId == studentProgId) {
-                        $(this).css('color', '#1a3a5c').css('font-weight', 'bold');
+                        $(this).css('color', '#0038A8').css('font-weight', 'bold');
                     } else {
                         $(this).css('color', '').css('font-weight', '');
                     }

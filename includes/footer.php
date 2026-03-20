@@ -17,7 +17,7 @@
             <div style="display:flex; align-items:center; gap: 0.6rem;">
                 <img src="../tesda_logo.png" alt="TESDA" style="height:22px; width:auto; opacity:0.85;">
                 <img src="../BCAT logo 2024.png" alt="BCAT" style="height:22px; width:auto; opacity:0.85;">
-                <span style="font-weight:600; color:#1a3a5c;">TESDA-BCAT</span>
+                <span style="font-weight:600; color:#0038A8;">TESDA-BCAT</span>
                 <span>Grade Management System</span>
             </div>
             <div style="display:flex; align-items:center; gap: 1.25rem;">
@@ -101,9 +101,9 @@
             }
         });
 
-        // Auto-hide alerts after 5 seconds
+        // Auto-hide session alerts after 5 seconds (only dismissible ones)
         setTimeout(function() {
-            $('.alert').fadeOut('slow');
+            $('.alert-dismissible').fadeOut('slow');
         }, 5000);
     </script>
     

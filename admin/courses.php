@@ -94,177 +94,199 @@ $courses = $conn->query("
 ?>
 
 <style>
+    .premium-card {
+        border-radius: 1rem;
+    }
+    .bg-dark-navy {
+        background-color: #0f172a !important;
+    }
     .subjects-table thead th {
         background-color: #f8fafc;
-        color: #475569;
+        color: #64748b;
         font-weight: 700;
         text-transform: uppercase;
-        font-size: 0.75rem;
-        letter-spacing: 0.05em;
-        padding: 1.25rem 1rem;
+        font-size: 0.7rem;
+        letter-spacing: 0.1em;
+        padding: 1rem;
         border-top: none;
     }
     .subjects-table tbody td {
         padding: 1.25rem 1rem;
         vertical-align: middle;
         color: #334155;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
-    .subject-icon {
-        width: 38px;
-        height: 38px;
+    .subject-icon-box {
+        width: 32px;
+        height: 32px;
         background: #f1f5f9;
-        color: var(--primary-indigo);
-        border-radius: 10px;
+        color: #6366f1;
+        border-radius: 6px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-weight: 700;
+        font-weight: 800;
         margin-right: 12px;
         flex-shrink: 0;
+        border: 1px solid #e2e8f0;
+        font-size: 0.8rem;
     }
-    .badge-unit {
-        background: rgba(79, 70, 229, 0.1);
-        color: var(--primary-indigo);
+    .stat-pill {
         font-weight: 700;
-        padding: 0.4rem 0.8rem;
-        border-radius: 0.5rem;
-        font-size: 0.85rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
-    .status-indicator {
+    .stat-blue { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+    
+    .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 6px;
         font-weight: 600;
-        font-size: 0.85rem;
-        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+        padding: 0.25rem 0.75rem;
         border-radius: 2rem;
     }
-    .status-active {
-        background-color: #f0fdf4;
-        color: #166534;
-        border: 1px solid #bbf7d0;
-    }
-    .status-inactive {
-        background-color: #f8fafc;
-        color: #475569;
-        border: 1px solid #e2e8f0;
-    }
-    .dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-    }
-    .dot-active { background-color: #22c55e; }
-    .dot-inactive { background-color: #94a3b8; }
+    .status-pill-active { background-color: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .status-pill-inactive { background-color: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
     
-    .btn-action {
-        width: 32px;
-        height: 32px;
-        display: flex;
+    .btn-action-edit { color: #2563eb; }
+    .btn-action-edit:hover { background: #2563eb; color: white; }
+    .btn-action-delete { color: #dc2626; }
+    .btn-action-delete:hover { background: #dc2626; color: white; }
+
+    /* Premium Action Buttons */
+    .btn-premium-edit {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.4rem 1.2rem;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50px;
+        color: #334155 !important;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        text-decoration: none !important;
+        cursor: pointer;
+    }
+    .btn-premium-edit:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e0;
+        color: #1e293b !important;
+        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    }
+    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
+
+    .btn-premium-delete {
+        width: 36px; height: 36px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
+        background-color: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 50%;
+        color: #ef4444 !important;
         transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        border: none;
+        cursor: pointer;
     }
-    .btn-edit-lite {
-        background: #eff6ff;
-        color: #2563eb;
-        border: 1px solid #dbeafe;
-    }
-    .btn-edit-lite:hover {
-        background: #2563eb;
-        color: white;
-    }
-    .btn-delete-lite {
-        background: #fef2f2;
-        color: #dc2626;
-        border: 1px solid #fee2e2;
-    }
-    .btn-delete-lite:hover {
-        background: #dc2626;
-        color: white;
+    .btn-premium-delete:hover {
+        background-color: #fef2f2;
+        border-color: #fecaca;
+        color: #dc2626 !important;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
     }
 </style>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between">
-        <h5 class="mb-0"><i class="fas fa-book"></i> Subject Management</h5>
-        <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
-            <i class="fas fa-plus"></i> Add Subject
+<div class="card premium-card shadow-sm border-0">
+    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-book me-2 text-info"></i> Subject Management
+        </h5>
+        <button class="btn btn-light btn-sm rounded px-3 shadow-sm fw-bold border-0" data-bs-toggle="modal" data-bs-target="#addModal">
+            <i class="fas fa-plus me-1 text-primary"></i> Add Subject
         </button>
     </div>
-    <div class="table-responsive">
-        <table class="table table-hover table-mobile-card subjects-table data-table">
-            <thead>
-                <tr>
-                    <th class="ps-4">Classification</th>
-                    <th>Subject Code</th>
-                    <th>Subj Description</th>
-                    <th>Program Assignment</th>
-                    <th class="text-center">Units</th>
-                    <th>Status</th>
-                    <th class="text-end pe-4">Manage</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($c = $courses->fetch_assoc()): ?>
-                <tr>
-                    <td class="ps-4" data-label="Classification">
-                        <div class="d-flex align-items-center">
-                            <div class="subject-icon">
-                                <?php echo substr($c['class_code'] ?? 'S', 0, 1); ?>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 subjects-table data-table">
+                <thead>
+                    <tr>
+                        <th class="ps-4">CLASSIFICATION</th>
+                        <th>SUBJECT CODE</th>
+                        <th>SUBJ DESCRIPTION</th>
+                        <th>PROGRAM ASSIGNMENT</th>
+                        <th class="text-center">UNITS</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-4">MANAGE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php while ($c = $courses->fetch_assoc()): ?>
+                    <tr>
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="subject-icon-box">
+                                    <?php echo substr($c['class_code'] ?? 'S', 0, 1); ?>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark lh-1"><?php echo htmlspecialchars($c['class_code'] ?? ''); ?></div>
+                                    <div class="text-muted small mt-1" style="font-size: 0.65rem;">ID: #<?php echo str_pad($c['course_id'], 4, '0', STR_PAD_LEFT); ?></div>
+                                </div>
                             </div>
-                            <div>
-                                <div class="fw-bold text-dark"><?php echo htmlspecialchars($c['class_code'] ?? ''); ?></div>
-                                <div class="text-xs text-muted">ID: #<?php echo str_pad($c['course_id'], 4, '0', STR_PAD_LEFT); ?></div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-primary border px-2 py-1" style="font-size: 0.75rem;"><?php echo htmlspecialchars($c['course_code'] ?? ''); ?></span>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark lh-sm"><?php echo htmlspecialchars($c['course_name'] ?? ''); ?></div>
+                            <div class="text-muted small text-truncate mt-1" style="max-width: 250px; font-size: 0.75rem;">
+                                <?php echo htmlspecialchars($c['description'] ?? 'Standard Subject Curriculum'); ?>
                             </div>
-                        </div>
-                    </td>
-                    <td data-label="Subject Code">
-                        <span class="badge bg-light text-primary border px-2 py-1"><?php echo htmlspecialchars($c['course_code'] ?? ''); ?></span>
-                    </td>
-                    <td data-label="Subject Description">
-                        <div class="fw-semibold"><?php echo htmlspecialchars($c['course_name'] ?? ''); ?></div>
-                        <div class="small text-muted" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                            <?php echo htmlspecialchars($c['description'] ?? 'No additional details provided.'); ?>
-                        </div>
-                    </td>
-                    <td data-label="Program">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-graduation-cap me-2 text-muted" style="font-size: 0.8rem;"></i>
-                            <span class="text-muted small"><?php echo htmlspecialchars($c['program_name'] ?? 'General/N/A'); ?></span>
-                        </div>
-                    </td>
-                    <td class="text-center" data-label="Units">
-                        <span class="badge-unit"><?php echo $c['units']; ?></span>
-                    </td>
-                    <td data-label="Status">
-                        <?php if (($c['status'] ?? 'active') === 'active'): ?>
-                            <div class="status-indicator status-active">
-                                <div class="dot dot-active"></div> Active
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="fas fa-graduation-cap me-2 small"></i>
+                                <span class="small fw-semibold"><?php echo htmlspecialchars($c['program_name'] ?? 'N/A'); ?></span>
                             </div>
-                        <?php else: ?>
-                            <div class="status-indicator status-inactive">
-                                <div class="dot dot-inactive"></div> Inactive
+                        </td>
+                        <td class="text-center">
+                            <span class="stat-pill stat-blue"><?php echo $c['units']; ?></span>
+                        </td>
+                        <td>
+                            <?php if (($c['status'] ?? 'active') === 'active'): ?>
+                                <div class="status-pill status-pill-active">
+                                    <div class="status-dot" style="background: #22c55e;"></div> Active
+                                </div>
+                            <?php else: ?>
+                                <div class="status-pill status-pill-inactive">
+                                    <div class="status-dot" style="background: #94a3b8;"></div> Inactive
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-end pe-4" data-label="Manage">
+                            <div class="d-flex justify-content-end gap-2">
+                                <button class="btn-premium-edit" onclick='editCourse(<?php echo json_encode($c); ?>)'>
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn-premium-delete" onclick="deleteCourse(<?php echo $c['course_id']; ?>, '<?php echo addslashes($c['course_name']); ?>')">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
                             </div>
-                        <?php endif; ?>
-                    </td>
-                    <td class="text-end pe-4" data-label="Manage">
-                        <div class="d-flex justify-content-end gap-2">
-                            <button class="btn-action btn-edit-lite" onclick='editCourse(<?php echo json_encode($c); ?>)' title="Edit Subject">
-                                <i class="fas fa-pen-fancy"></i>
-                            </button>
-                            <button class="btn-action btn-delete-lite" onclick="deleteCourse(<?php echo $c['course_id']; ?>, '<?php echo addslashes($c['course_name']); ?>')" title="Remove Subject">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-                <?php
-endwhile; ?>
-            </tbody>
-        </table>
+                        </td>
+                    </tr>
+                    <?php endwhile; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

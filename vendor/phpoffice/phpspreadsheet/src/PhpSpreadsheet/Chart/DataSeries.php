@@ -43,8 +43,6 @@ class DataSeries
     const EMPTY_AS_GAP = 'gap';
     const EMPTY_AS_ZERO = 'zero';
     const EMPTY_AS_SPAN = 'span';
-    const DEFAULT_EMPTY_AS = self::EMPTY_AS_GAP;
-    const VALID_EMPTY_AS = [self::EMPTY_AS_GAP, self::EMPTY_AS_ZERO, self::EMPTY_AS_SPAN];
 
     /**
      * Series Plot Type.
@@ -369,13 +367,19 @@ class DataSeries
     public function refresh(Worksheet $worksheet): void
     {
         foreach ($this->plotValues as $plotValues) {
-            $plotValues->refresh($worksheet, true);
+            if ($plotValues !== null) {
+                $plotValues->refresh($worksheet, true);
+            }
         }
         foreach ($this->plotLabel as $plotValues) {
-            $plotValues->refresh($worksheet, true);
+            if ($plotValues !== null) {
+                $plotValues->refresh($worksheet, true);
+            }
         }
         foreach ($this->plotCategory as $plotValues) {
-            $plotValues->refresh($worksheet, false);
+            if ($plotValues !== null) {
+                $plotValues->refresh($worksheet, false);
+            }
         }
     }
 

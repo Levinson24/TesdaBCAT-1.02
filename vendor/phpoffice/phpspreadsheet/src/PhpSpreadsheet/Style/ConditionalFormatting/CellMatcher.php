@@ -6,7 +6,6 @@ use PhpOffice\PhpSpreadsheet\Calculation\Calculation;
 use PhpOffice\PhpSpreadsheet\Calculation\Exception;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Shared\StringHelper;
 use PhpOffice\PhpSpreadsheet\Style\Conditional;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -111,7 +110,6 @@ class CellMatcher
             // Last 7 Days AND(TODAY()-FLOOR(<Cell Reference>,1)<=6,FLOOR(<Cell Reference>,1)<=TODAY())
             Conditional::CONDITION_TIMEPERIOD,
             Conditional::CONDITION_EXPRESSION => $this->processExpression($conditional),
-            Conditional::CONDITION_COLORSCALE => $this->processColorScale($conditional),
             default => false,
         };
     }
@@ -125,7 +123,7 @@ class CellMatcher
                 return 'NULL';
             }
 
-            return '"' . StringHelper::convertToString($value) . '"';
+            return '"' . $value . '"';
         }
 
         return $value;
@@ -133,25 +131,22 @@ class CellMatcher
 
     protected function wrapCellValue(): float|int|string
     {
-        $this->cell = $this->worksheet->getCell([$this->cellColumn, $this->cellRow]);
-
         return $this->wrapValue($this->cell->getCalculatedValue());
     }
 
-    /** @param string[] $matches */
     protected function conditionCellAdjustment(array $matches): float|int|string
     {
         $column = $matches[6];
         $row = $matches[7];
+
         if (!str_contains($column, '$')) {
-            //            $column = Coordinate::stringFromColumnIndex($this->cellColumn);
             $column = Coordinate::columnIndexFromString($column);
             $column += $this->cellColumn - $this->referenceColumn;
             $column = Coordinate::stringFromColumnIndex($column);
         }
 
         if (!str_contains($row, '$')) {
-            $row = (int) $row + $this->cellRow - $this->referenceRow;
+            $row += $this->cellRow - $this->referenceRow;
         }
 
         if (!empty($matches[4])) {
@@ -195,11 +190,6 @@ class CellMatcher
         return implode(Calculation::FORMULA_STRING_QUOTE, $splitCondition);
     }
 
-    /**
-     * @param mixed[] $conditions
-     *
-     * @return mixed[]
-     */
     protected function adjustConditionsForCellReferences(array $conditions): array
     {
         return array_map(
@@ -216,22 +206,9 @@ class CellMatcher
 
         $operator = self::COMPARISON_OPERATORS[$conditional->getOperatorType()];
         $conditions = $this->adjustConditionsForCellReferences($conditional->getConditions());
-        /** @var float|int|string */
-        $temp1 = $this->wrapCellValue();
-        /** @var scalar */
-        $temp2 = array_pop($conditions);
-        $expression = sprintf('%s%s%s', (string) $temp1, $operator, (string) $temp2);
+        $expression = sprintf('%s%s%s', (string) $this->wrapCellValue(), $operator, (string) array_pop($conditions));
 
         return $this->evaluateExpression($expression);
-    }
-
-    protected function processColorScale(Conditional $conditional): bool
-    {
-        if (is_numeric($this->wrapCellValue()) && $conditional->getColorScale()?->colorScaleReadyForUse()) {
-            return true;
-        }
-
-        return false;
     }
 
     protected function processRangeOperator(Conditional $conditional): bool
@@ -244,7 +221,7 @@ class CellMatcher
                 (string) $this->wrapCellValue(),
                 self::COMPARISON_RANGE_OPERATORS[$conditional->getOperatorType()]
             ),
-            ...$conditions //* @phpstan-ignore-line
+            ...$conditions
         );
 
         return $this->evaluateExpression($expression);
@@ -267,14 +244,11 @@ class CellMatcher
     protected function processExpression(Conditional $conditional): bool
     {
         $conditions = $this->adjustConditionsForCellReferences($conditional->getConditions());
-        /** @var string */
         $expression = array_pop($conditions);
-        /** @var float|int|string */
-        $temp = $this->wrapCellValue();
 
         $expression = (string) preg_replace(
             '/\b' . $this->referenceCell . '\b/i',
-            (string) $temp,
+            (string) $this->wrapCellValue(),
             $expression
         );
 

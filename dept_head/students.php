@@ -48,56 +48,85 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
 
 $pageTitle = 'Diploma Program Students';
 require_once '../includes/header.php';
+?>
+<style>
+    .bg-dark-navy {
+        background-color: #0f172a !important;
+    }
+    .premium-card {
+        border-radius: 1rem;
+    }
+</style>
+<?php
 
 ?>
 
-<div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0"><i class="fas fa-user-graduate"></i> Students in <?php echo htmlspecialchars($userProfile['dept_name'] ?? 'Your Diploma Program'); ?></h5>
-        <a href="?export=csv" class="btn btn-light btn-sm fw-bold">
-            <i class="fas fa-download me-1"></i> Export CSV
+<div class="card premium-card mb-4 shadow-sm border-0">
+    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+        <h5 class="mb-0 text-white fw-bold ms-2">
+            <i class="fas fa-user-graduate me-2 text-info"></i> Students in <?php echo htmlspecialchars($userProfile['dept_name'] ?? 'Your Diploma Program'); ?>
+        </h5>
+        <a href="?export=csv" class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary pe-3 me-2">
+            <i class="fas fa-download me-2"></i> Export CSV
         </a>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover data-table">
-                <thead>
+            <table class="table table-hover align-middle mb-0 data-table">
+                <thead class="bg-light">
                     <tr>
-                        <th>Student No</th>
-                        <th>Name</th>
+                        <th class="ps-4">Student No</th>
+                        <th>Student Name</th>
                         <th>Program (Course)</th>
                         <th>Year Level</th>
                         <th>Status</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end pe-4">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($s = $result->fetch_assoc()): ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($s['student_no']); ?></td>
-                        <td>
-                            <a href="view_student.php?student_id=<?php echo $s['student_id']; ?>" class="text-decoration-none fw-bold">
-                                <?php echo htmlspecialchars($s['last_name'] . ', ' . $s['first_name']); ?>
-                            </a>
+                        <td class="ps-4">
+                            <span class="fw-bold text-primary">#<?php echo htmlspecialchars($s['student_no']); ?></span>
                         </td>
-                        <td><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></td>
-                        <td><?php echo $s['year_level']; ?></td>
                         <td>
-                            <span class="badge bg-<?php echo $s['status'] === 'active' ? 'success' : 'secondary'; ?>">
-                                <?php echo ucfirst($s['status']); ?>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 35px; height: 35px;">
+                                    <i class="fas fa-user-graduate"></i>
+                                </div>
+                                <div>
+                                    <a href="view_student.php?student_id=<?php echo $s['student_id']; ?>" class="text-decoration-none fw-bold text-dark">
+                                        <?php echo htmlspecialchars($s['last_name'] . ', ' . $s['first_name']); ?>
+                                    </a>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="fw-bold text-muted small"><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.7rem;">Year <?php echo $s['year_level']; ?></span>
+                        </td>
+                        <td>
+                            <?php 
+                                $statusColor = ($s['status'] === 'active' ? 'success' : ($s['status'] === 'graduated' ? 'primary' : 'secondary'));
+                            ?>
+                            <span class="badge rounded-pill bg-<?php echo $statusColor; ?> bg-opacity-10 text-<?php echo $statusColor; ?> px-3">
+                                <i class="fas fa-circle me-1" style="font-size: 0.4rem;"></i> <?php echo ucfirst($s['status']); ?>
                             </span>
                         </td>
-                         <td class="text-end text-nowrap">
-                            <a href="view_student.php?student_id=<?php echo $s['student_id']; ?>" class="btn btn-sm btn-outline-primary" title="View Profile">
-                                <i class="fas fa-eye me-1"></i> View
-                            </a>
-                            <a href="manage_student_schedule.php?student_id=<?php echo $s['student_id']; ?>" class="btn btn-sm btn-info" title="Manage Enrollment">
-                                <i class="fas fa-calendar-check mr-1"></i> Enrollment
-                            </a>
+                         <td class="text-end pe-4">
+                            <div class="btn-group">
+                                <a href="view_student.php?student_id=<?php echo $s['student_id']; ?>" class="btn btn-sm btn-light border text-primary rounded-pill me-1" title="View Profile">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a href="manage_student_schedule.php?student_id=<?php echo $s['student_id']; ?>" class="btn btn-sm btn-light border text-info rounded-pill" title="Enrollment">
+                                    <i class="fas fa-calendar-check"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
-                    <?php
-endwhile; ?>
+                    <?php endwhile; ?>
                 </tbody>
             </table>
         </div>

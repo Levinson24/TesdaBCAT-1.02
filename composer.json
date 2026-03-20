@@ -1,6 +1,11 @@
 {
     "require": {
-        "phpoffice/phpspreadsheet": "^5.4",
+        "phpoffice/phpspreadsheet": "^2.1",
         "phpmailer/phpmailer": "^7.0"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        }
     }
 }

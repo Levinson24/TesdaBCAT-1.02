@@ -253,7 +253,10 @@ $currentUser = getUserProfile(getCurrentUserId(), 'admin');
                                             <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-pill" style="width: 32px; height: 32px; font-size: 0.8rem;">
                                                 <i class="fas fa-user"></i>
                                             </div>
-                                            <span class="fw-semibold"><?php echo htmlspecialchars($activity['username'] ?? 'System'); ?></span>
+                                            <div>
+                                                <span class="fw-semibold d-block"><?php echo htmlspecialchars($activity['username'] ?? 'System'); ?></span>
+                                                <span class="text-muted d-block" style="font-size: 0.65rem;"><i class="fas fa-desktop me-1"></i> <?php echo htmlspecialchars($activity['ip_address'] ?? '0.0.0.0'); ?></span>
+                                            </div>
                                         </div>
                                     </td>
                                     <td data-label="Action Type">
@@ -388,7 +391,10 @@ function updateActivityFeed() {
                             <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-pill" style="width: 32px; height: 32px; font-size: 0.8rem;">
                                 <i class="fas fa-user"></i>
                             </div>
-                            <span class="fw-semibold">${activity.username}</span>
+                            <div>
+                                <span class="fw-semibold d-block">${activity.username}</span>
+                                <span class="text-muted d-block" style="font-size: 0.65rem;"><i class="fas fa-desktop me-1"></i> ${activity.ip_address || '0.0.0.0'}</span>
+                            </div>
                         </div>
                     </td>
                     <td data-label="Action Type">
@@ -435,7 +441,7 @@ function initDashboardCharts() {
                     datasets: [{
                         data: data.programs.map(p => p.value),
                         backgroundColor: [
-                            '#1a3a5c', '#2980b9', '#3498db', '#5b8db8', '#b8d0ef', '#e8f0fb'
+                            '#0038A8', '#0047D1', '#0055FF', '#3377FF', '#6699FF', '#99BBFF'
                         ],
                         borderWidth: 0
                     }]
@@ -466,7 +472,7 @@ function initDashboardCharts() {
                     datasets: [{
                         label: 'Active Students',
                         data: data.yearLevels.map(y => y.value),
-                        backgroundColor: 'rgba(26, 58, 92, 0.8)',
+                        backgroundColor: 'rgba(0, 56, 168, 0.8)',
                         borderRadius: 8,
                         barThickness: 30
                     }]

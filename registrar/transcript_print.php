@@ -69,10 +69,11 @@ $vHash = hash('sha256', 'BCAT_TRANSCRIPT_' . $transcriptId);
 // Construct Verification URL
 $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'];
-$verifyUrl = "$protocol://$host/verify.php?tid=$transcriptId&v=$vHash";
+$baseDir = rtrim(dirname(dirname($_SERVER['PHP_SELF'])), '/\\');
+$verifyUrl = "$protocol://$host$baseDir/verify.php?tid=$transcriptId&v=$vHash";
 
 // Log audit action
-logAudit($userId, 'PRINT', 'transcripts', $studentId, null, 'Generated official Transcript of Records for student: ' . ($student['student_no'] ?? $studentId));
+logAudit($userId, 'PRINT_TOR', 'transcripts', $studentId, null, 'Generated official Transcript of Records for student: ' . ($student['student_no'] ?? $studentId));
 
 if (!$student) {
     redirectWithMessage('students.php', 'Student not found.', 'danger');
@@ -107,15 +108,147 @@ $stmt->execute();
 $grades_res = $stmt->get_result();
 
 // Group grades by school year and semester
-$groupedGrades = [];
+$allGrades = [];
 while ($grade = $grades_res->fetch_assoc()) {
     $key = $grade['school_year'] . ' - ' . $grade['semester'];
-    if (!isset($groupedGrades[$key])) {
-        $groupedGrades[$key] = [];
-    }
-    $groupedGrades[$key][] = $grade;
+    $allGrades[$key][] = $grade;
 }
 $stmt->close();
+
+// --- Pagination Logic (Dynamic 10-row Chunks) ---
+// Flatten grades into a display list (headers + rows)
+$displayList = [];
+foreach ($allGrades as $period => $periodGrades) {
+    $displayList[] = ['type' => 'header', 'content' => $period];
+    foreach ($periodGrades as $grade) {
+        $displayList[] = ['type' => 'row', 'content' => $grade];
+    }
+}
+
+$paperSize = 'legal';
+
+$pageConfig = [
+    'legal' => ['width' => 216, 'height' => 356, 'rows' => 10],
+];
+
+$config = $pageConfig[$paperSize];
+$rowsPerPage = $config['rows'];
+$pages = array_chunk($displayList, $rowsPerPage);
+if (empty($pages))
+    $pages = [[]]; // Ensure at least one page
+$totalPageCount = count($pages);
+
+// Reusable Document Components
+function renderTORHeader($schoolName, $schoolRegion, $schoolAddress, $docTitle, $pageNumber, $totalPageCount)
+{
+?>
+    <div class="d-flex justify-content-between align-items-center mb-0 transcript-header">
+        <div class="header-logo">
+            <img src="../BCAT logo 2024.png" alt="Logo Left" class="img-fluid" style="max-height: 100px;">
+        </div>
+        <div class="header-text text-center mx-3" style="flex: 1;">
+            <h6 class="mb-0 text-uppercase fw-normal small" style="letter-spacing: 1px; color: #64748b;">Republic of the Philippines</h6>
+            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #1e293b;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
+            <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolRegion); ?></h6>
+            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0f172a; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
+            <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolAddress); ?></h6>
+        </div>
+        <div class="header-logo">
+            <img src="../tesda_logo.png" alt="TESDA Logo" class="img-fluid" style="max-height: 100px;">
+        </div>
+    </div>
+    <div class="header-double-line"></div>
+    <?php if ($totalPageCount > 1): ?>
+        <div class="text-end w-100" style="margin-top: -5px; margin-bottom: 0;">
+            <span class="fw-bold text-muted" style="font-size: 0.75rem; letter-spacing: 0.5px;">PAGE <?php echo $pageNumber; ?> OF <?php echo $totalPageCount; ?></span>
+        </div>
+    <?php
+    endif; ?>
+    <div class="text-center mb-3">
+        <h5 class="official-title mb-1"><?php echo strtoupper($docTitle); ?></h5>
+        <div class="title-underline mx-auto"></div>
+    </div>
+<?php
+}
+
+function renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $torId)
+{
+?>
+    <div class="mt-auto">
+        <?php if ($isLastPage): ?>
+            <div class="row align-items-end mb-4 g-4">
+                <div class="col-7">
+                    <!-- Verification Frame -->
+                    <div class="verification-card mb-3">
+                        <div class="row align-items-center g-0">
+                            <div class="col-3 text-center border-end py-2">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?php echo urlencode($verifyUrl); ?>" alt="QR" class="img-fluid" style="max-width: 85px;">
+                            </div>
+                            <div class="col-9 ps-3 py-2">
+                                <div class="fw-bold text-dark small">OFFICIAL VERIFICATION</div>
+                                <div class="text-muted" style="font-size: 0.65rem;">Scan this QR code to verify the authenticity of this Official Transcript of Records.</div>
+                                <div class="fw-bold text-primary mt-1" style="font-size: 0.75rem;">REF ID: TOR-<?php echo str_pad($torId, 8, "0", STR_PAD_LEFT); ?></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Grading Legend Frame -->
+                    <div class="grading-legend-card p-2">
+                        <div class="fw-bold text-primary small mb-2 border-bottom pb-1" style="font-size: 0.7rem;">MASTER GRADING SYSTEM</div>
+                        <div class="d-flex flex-wrap align-items-center gap-1">
+                            <span class="fw-bold" style="font-size: 0.70rem;">1.00 - 1.25</span> <span class="small me-2" style="font-size: 0.65rem;">Excellent</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">1.50 - 1.75</span> <span class="small me-2" style="font-size: 0.65rem;">Very Good</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">2.00 - 2.25</span> <span class="small me-2" style="font-size: 0.65rem;">Good</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">2.50 - 2.75</span> <span class="small me-2" style="font-size: 0.65rem;">Satisfactory</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">3.00</span> <span class="small me-2" style="font-size: 0.65rem;">Passing</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">5.00</span> <span class="small me-2" style="font-size: 0.65rem;">Failed</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">INC</span> <span class="small me-2" style="font-size: 0.65rem;">Incomplete</span>
+                            <span class="fw-bold" style="font-size: 0.70rem;">DRP</span> <span class="small" style="font-size: 0.65rem;">Dropped</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-5">
+                    <!-- Summary Totals Frame -->
+                    <div class="totals-card mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-muted small">TOTAL UNITS EARNED:</span>
+                            <span class="fw-bold h5 mb-0 text-primary"><?php echo $totalUnits; ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-muted small">CUMULATIVE GWA:</span>
+                            <span class="fw-bold h5 mb-0 text-primary"><?php echo number_format($gwa, 2); ?></span>
+                        </div>
+                    </div>
+
+                    <div class="signature-block w-100 text-center">
+                        <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                        <div class="fw-bold text-uppercase text-dark" style="font-size: 1rem;"><?php echo $registrarName; ?></div>
+                        <div class="text-muted fw-bold text-uppercase" style="font-size: 0.7rem;"><?php echo $registrarPosition; ?></div>
+                        <div class="text-muted small mt-1">Authorized Official Signature</div>
+                    </div>
+                </div>
+            </div>
+        <?php
+    endif; ?>
+
+        <div class="d-flex justify-content-center align-items-center text-center text-muted small border-top pt-2 mt-2">
+            <div style="width: 50px; height: 50px; border: 1.5px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; color: #94a3b8; margin-right: 12px; border-radius: 4px; line-height: 1.1;">
+                DRY<br>SEAL
+            </div>
+            <div class="text-start">
+                <span class="text-primary me-2">●</span>
+                <strong>OFFICIAL TRANSCRIPT:</strong> NOT VALID without official dry seal.<br>
+                <span>Date Printed: <?php echo date('F d, Y h:i A'); ?></span>
+                <?php if (!$isLastPage): ?>
+                    <span class="ms-3 fw-bold text-primary text-uppercase">[ CONTINUED ON PAGE <?php echo $pageNumber + 1; ?> OF <?php echo $totalPageCount; ?> ]</span>
+                <?php
+    endif; ?>
+            </div>
+        </div>
+    </div>
+<?php
+}
 
 // Calculate total units (Approved only for Official TOR)
 $stmt = $conn->prepare("
@@ -126,7 +259,7 @@ $stmt = $conn->prepare("
     JOIN courses c ON cs.course_id = c.course_id
     WHERE e.student_id = ? 
     AND (
-        (g.status = 'approved' AND (g.remarks IN ('Passed', 'Excellent', 'Very Good', 'Good', 'Satisfactory') OR (g.grade > 0 AND g.grade <= 3.00)))
+        (g.status = 'approved' AND (g.remarks IN ('Passed', 'Excellent', 'Very Good', 'Good', 'Satisfactory', 'Fair') OR (g.grade > 0 AND g.grade <= 3.00)))
         OR (c.course_type = 'Minor' AND g.status = 'approved' AND g.remarks = 'Passed')
     )
 ");
@@ -168,15 +301,18 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         .transcript-container {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             max-width: 1000px;
-            margin: 20px auto;
+            margin: 30px auto;
             color: #1a202c;
             border: 1px solid #e2e8f0;
             background: #ffffff;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            border-radius: 0.5rem;
-            padding: 3rem;
-            position: relative; /* Required for absolute watermark */
-            min-height: 297mm;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            border-radius: 0.75rem;
+            padding: 40px;
+            position: relative; 
+            min-height: <?php echo $config['height']; ?>mm;
+            display: flex;
+            flex-direction: column;
+            overflow: visible; /* Prevent internal scrollbars */
         }
 
         .watermark {
@@ -186,7 +322,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             transform: translate(-50%, -50%);
             width: 550px;
             height: auto;
-            opacity: 0.08;
+            opacity: 0.05;
             pointer-events: none;
             z-index: 0;
             user-select: none;
@@ -236,8 +372,9 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         .info-value {
             flex: 1;
             font-weight: 700;
-            color: #2d3748;
-            border-bottom: 1px dotted #cbd5e0;
+            color: #1e293b;
+            border-bottom: 1.5px dotted #a0aec0;
+            padding-left: 5px;
         }
 
         .transcript-table {
@@ -252,17 +389,25 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         .transcript-table thead th {
             background: #2d3748 !important;
             color: white !important;
-            font-weight: 600;
+            font-weight: 700;
             text-transform: uppercase;
-            font-size: 0.7rem;
-            padding: 10px 6px;
+            font-size: 0.75rem;
+            padding: 8px 6px;
             border: 1px solid #2d3748 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
         }
 
-        .transcript-table tbody tr {
-            page-break-inside: avoid;
+        .transcript-table tr {
+            page-break-inside: avoid !important;
+        }
+
+        .transcript-table-wrapper {
+            page-break-inside: auto;
+        }
+
+        .no-break {
+            page-break-inside: avoid !important;
         }
 
         .remarks-text {
@@ -289,21 +434,25 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         /* Registrar specific signatures */
         .signature-section {
             display: flex;
-            justify-content: flex-end;
-            margin-top: 30px;
+            justify-content: space-between;
+            margin-top: 40px;
             page-break-inside: avoid;
         }
         .signature-block {
-            width: 280px;
+            width: 45%;
             text-align: center;
         }
         .sig-line {
-            border-bottom: 1px solid #1a202c;
-            margin-bottom: 4px;
-            height: 30px;
+            border-bottom: 2px solid #1e293b;
+            margin-bottom: 6px;
+            height: 40px;
+            width: 90%;
+            margin-left: auto;
+            margin-right: auto;
         }
-        .sig-name { font-weight: 700; font-size: 10pt; text-transform: uppercase; }
-        .sig-title { color: #4a5568; font-size: 0.8rem; }
+        .sig-name { font-weight: 800; font-size: 1rem; text-transform: uppercase; color: #1e293b; }
+        .sig-title { color: #64748b; font-size: 0.75rem; font-weight: 600; margin-top: 2px; }
+        .sig-caption { color: #718096; font-size: 0.7rem; margin-top: 4px; }
 
         /* Print Controls */
         .print-controls {
@@ -321,8 +470,8 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         /* Print Specifics */
         @media print {
             @page {
-                margin: 1cm;
-                size: portrait;
+                size: <?php echo($paperSize === 'legal') ? 'legal' : 'letter'; ?>;
+                margin: 8mm 10mm;
             }
 
             * {
@@ -333,7 +482,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
 
             body {
                 background: white !important;
-                font-size: 10pt !important;
+                font-size: 11pt !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 width: 100% !important;
@@ -346,136 +495,139 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             .transcript-container {
                 border: none !important;
                 box-shadow: none !important;
-                padding: 2mm !important;
+                padding: 8mm 12mm !important;
                 margin: 0 !important;
-                width: 100% !important; 
-                max-width: 100% !important;
-                min-height: auto !important;
+                height: auto !important;
+                min-height: 100% !important;
                 border-radius: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
             }
 
             .header-logo img {
-                max-height: 70px !important;
+                max-height: 90px !important;
             }
 
             .header-text h4 {
-                font-size: 1.1rem !important;
-                margin-top: 1px !important;
+                font-size: 1.25rem !important;
+                margin-top: 2px !important;
             }
 
             .header-text h6 {
-                font-size: 8.5pt !important;
+                font-size: 9pt !important;
             }
 
             .official-title {
-                font-size: 1.1rem !important;
+                font-size: 1.2rem !important;
             }
 
             .info-group {
-                margin-bottom: 3px !important;
-                font-size: 10.5px !important;
+                margin-bottom: 6px !important;
+                font-size: 11px !important;
             }
 
             .info-label {
-                width: 110px !important;
+                width: 120px !important;
             }
 
             .transcript-table {
-                font-size: 9px !important;
+                font-size: 10px !important;
                 width: 100% !important;
             }
 
             .transcript-table thead th {
-                padding: 6px 4px !important;
+                padding: 10px 6px !important;
+                background: #2d3748 !important;
+                color: white !important;
             }
 
             .transcript-table td {
-                padding: 4px 4px !important;
+                padding: 6px 6px !important;
             }
 
             .summary-table {
-                font-size: 10.5px !important;
+                font-size: 11px !important;
             }
 
             .grading-system-box {
-                margin-top: 15px !important;
-                padding: 10px !important;
+                margin-top: 20px !important;
+                padding: 12px !important;
+                background-color: #f8fafc !important;
+                border-left: 4px solid #3182ce !important;
             }
 
             .grading-system-box h6 {
-                font-size: 10.5px !important;
+                font-size: 11px !important;
             }
 
             .grading-system-box ul {
-                font-size: 9.5px !important;
+                font-size: 10px !important;
             }
             
             .info-value {
-                border-bottom: 1px solid #e2e8f0;
+                border-bottom: 1px dotted #cbd5e0 !important;
             }
 
             .watermark {
-                opacity: 0.05 !important;
+                opacity: 0.06 !important;
             }
         }
     </style>
 </head>
 <body>
 
-    <div class="print-controls">
-        <button class="btn btn-secondary" onclick="window.close()">Close</button>
-        <button class="btn btn-primary" onclick="window.print()"><i class="fas fa-print me-2"></i> Print PDF</button>
-    </div>
+    <div class="print-controls d-flex justify-content-center align-items-center gap-3">
 
-    <div class="transcript-container" id="transcriptCard">
+        <button class="btn btn-secondary shadow-sm" onclick="window.close()">Close</button>
+        <button class="btn btn-primary shadow-sm" onclick="window.print()"><i class="fas fa-print me-2"></i> Print PDF</button>
+    </div>
+    <?php foreach ($pages as $pIndex => $pageContent):
+    $pageNumber = $pIndex + 1;
+    $isLastPage = ($pageNumber === $totalPageCount);
+?>
+    <div class="transcript-container" id="transcriptCard<?php echo $pageNumber; ?>" style="<?php echo $pageNumber < $totalPageCount ? 'page-break-after: always;' : ''; ?>; <?php echo $pageNumber > 1 ? 'margin-top: 50px;' : ''; ?>">
         <img src="../BCAT logo 2024.png" class="watermark" alt="BCAT Watermark">
-        <!-- Header Information -->
-        <div class="d-flex justify-content-center align-items-center mb-3 transcript-header">
-            <div class="header-logo">
-                <img src="../BCAT logo 2024.png" alt="Logo Left" class="img-fluid" style="max-height: 115px; margin-right: 25px;">
-            </div>
-            <div class="header-text text-center mx-3" style="max-width: 650px;">
-                <h6 class="mb-1 text-uppercase fw-normal" style="font-size: 0.9rem; letter-spacing: 0.5px;">Republic of the Philippines</h6>
-                <h6 class="mb-1 fw-bold" style="font-size: 1rem;">Technical Education and Skills Development Authority</h6>
-                <h6 class="mb-1" style="font-size: 0.9rem;"><?php echo htmlspecialchars($schoolRegion); ?></h6>
-                <h4 class="mb-1 mt-1"><strong><?php echo htmlspecialchars($schoolName); ?></strong></h4>
-                <h6 class="mb-0 text-muted" style="font-size: 0.85rem;"><?php echo htmlspecialchars($schoolAddress); ?></h6>
-            </div>
-            <div class="header-logo">
-                <img src="../tesda_logo.png" alt="TESDA Logo" class="img-fluid" style="max-height: 115px; margin-left: 25px;">
-            </div>
-        </div>
         
-        <div class="header-double-line"></div>
+        <?php renderTORHeader($schoolName, $schoolRegion, $schoolAddress, getSetting('registrar_doc_title', 'OFFICIAL TRANSCRIPT OF RECORDS'), $pageNumber, $totalPageCount); ?>
         
-        <div class="text-center mb-4">
-            <h5 class="official-title"><?php echo strtoupper(getSetting('registrar_doc_title', 'OFFICIAL TRANSCRIPT OF RECORDS')); ?></h5>
-            <div class="title-underline mx-auto"></div>
-        </div>
-        
-        <!-- Student Information -->
-        <div class="row mb-4 student-info-grid">
-            <div class="col-md-6">
+        <!-- Student Information Block (Repeated on every page for context) -->
+        <div class="row mb-3 student-info-grid">
+            <div class="col-6">
                 <div class="info-group">
                     <span class="info-label">Name:</span>
-                    <span class="info-value text-uppercase"><?php echo htmlspecialchars($fullName); ?></span>
+                    <div class="info-value">
+                        <span class="text-uppercase fw-bold" style="font-size: 1.1rem;"><?php echo htmlspecialchars($fullName); ?></span>
+                        <?php if (!empty($honors)): ?>
+                            <div class="text-primary fw-bold small mt-1" style="letter-spacing: 0.5px;">
+                                <i class="fas fa-medal me-1"></i> <?php echo strtoupper($honors); ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="info-group">
                     <span class="info-label">Student No:</span>
                     <span class="info-value"><?php echo htmlspecialchars($student['student_no'] ?? ''); ?></span>
                 </div>
                 <div class="info-group">
+                    <span class="info-label">Gender:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($student['gender'] ?? 'N/A'); ?></span>
+                </div>
+                <div class="info-group">
                     <span class="info-label">Date of Birth:</span>
                     <span class="info-value"><?php echo formatDate($student['date_of_birth']); ?></span>
                 </div>
-            </div>
-            <div class="col-md-6">
                 <div class="info-group">
                     <span class="info-label">Address:</span>
-                    <span class="info-value"><?php echo htmlspecialchars(($student['address'] ?? '') . ', ' . ($student['municipality'] ?? '')); ?></span>
+                    <span class="info-value" style="font-size: 0.85rem;"><?php echo htmlspecialchars(($student['address'] ?? '') . ', ' . ($student['municipality'] ?? '')); ?></span>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="info-group">
+                    <span class="info-label">Diploma Program:</span>
+                    <span class="info-value"><?php echo htmlspecialchars($student['dept_name'] ?? 'N/A'); ?></span>
                 </div>
                 <div class="info-group">
-                    <span class="info-label">Course:</span>
+                    <span class="info-label">Course/Major:</span>
                     <span class="info-value"><?php echo htmlspecialchars($student['program_name'] ?? $student['course'] ?? 'N/A'); ?></span>
                 </div>
                 <div class="info-group">
@@ -483,152 +635,115 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
                     <span class="info-value"><?php echo htmlspecialchars($student['year_level'] ?? ''); ?></span>
                 </div>
                 <div class="info-group">
-                    <span class="info-label">Diploma Program:</span>
-                    <span class="info-value"><?php echo htmlspecialchars($student['dept_name'] ?? 'N/A'); ?></span>
+                    <span class="info-label">Admission Date:</span>
+                    <span class="info-value"><?php echo formatDate($student['enrollment_date']); ?></span>
                 </div>
             </div>
         </div>
+
+        <?php if ($pageNumber === 1): ?>
+        <div class="p-2 mb-4 bg-light border-start border-4 border-primary rounded-end">
+            <div class="row text-muted small fw-bold text-uppercase border-bottom mb-2 pb-1 mx-0">
+                <div class="col-12"><i class="fas fa-graduation-cap me-2 text-primary"></i>Educational Background</div>
+            </div>
+            <div class="row g-2 px-2">
+                <div class="col-6 border-end">
+                    <div class="small text-muted">Secondary:</div>
+                    <div class="fw-bold"><?php echo htmlspecialchars($student['secondary_school'] ?? 'N/A'); ?> (<?php echo htmlspecialchars($student['secondary_year'] ?? '—'); ?>)</div>
+                </div>
+                <div class="col-6">
+                    <div class="small text-muted">Elementary:</div>
+                    <div class="fw-bold"><?php echo htmlspecialchars($student['elem_school'] ?? 'N/A'); ?> (<?php echo htmlspecialchars($student['elem_year'] ?? '—'); ?>)</div>
+                </div>
+            </div>
+        </div>
+        <?php
+    endif; ?>
         
-        <!-- Academic Records - Consolidated Table -->
-        <div class="table-responsive">
+        <!-- MIDDLE CONTENT (Grades Table) -->
+        <div class="transcript-table-wrapper">
             <table class="table table-bordered transcript-table bg-white">
                 <thead>
-                    <tr>
+                    <tr class="bg-dark text-white">
                         <th width="12%">Period</th>
                         <th width="10%">Subject Code</th>
-                        <th width="25%">Subject Description</th>
+                        <th width="30%">Subject Description</th>
                         <th width="15%">Schedule / Room</th>
-                        <th width="5%" class="text-center">Units</th>
-                        <th width="8%" class="text-center">Midterm</th>
-                        <th width="8%" class="text-center">Final</th>
-                        <th width="8%" class="text-center">Grade</th>
-                        <th width="9%" class="text-center">Remarks</th>
+                        <th class="text-center">Units</th>
+                        <th class="text-center">Midterm</th>
+                        <th class="text-center">Final</th>
+                        <th class="text-center">Grade</th>
+                        <th class="text-center">Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if (!empty($groupedGrades)): ?>
-                        <?php foreach ($groupedGrades as $period => $periodGrades): ?>
-                            <tr class="bg-light no-break">
-                                <td colspan="9" class="fw-bold text-primary py-2 px-3" style="background-color: #f1f5f9 !important; border-left: 4px solid #0d6efd !important;">
-                                    <i class="fas fa-calendar-alt me-2"></i> <?php echo htmlspecialchars($period); ?>
-                                </td>
-                            </tr>
-                            <?php foreach ($periodGrades as $grade): ?>
+                    <?php if (!empty($pageContent)): ?>
+                        <?php foreach ($pageContent as $item): ?>
+                            <?php if ($item['type'] === 'header'): ?>
+                                <tr class="bg-light no-break">
+                                    <td colspan="9" class="fw-bold py-2 px-3" style="background-color: #f8fafc !important; border-left: 5px solid #0d6efd !important; font-size: 0.75rem; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <?php echo htmlspecialchars($item['content']); ?>
+                                    </td>
+                                </tr>
+                            <?php
+            else:
+                $grade = $item['content'];
+?>
                             <tr>
                                 <td class="text-center small"><?php echo htmlspecialchars($grade['class_code'] ?? '-'); ?></td>
                                 <td class="fw-bold"><?php echo htmlspecialchars($grade['course_code'] ?? ''); ?></td>
-                                <td><?php echo htmlspecialchars($grade['course_name'] ?? ''); ?></td>
-                                <td>
-                                    <div class="small fw-bold"><?php echo htmlspecialchars($grade['schedule'] ?? 'TBA'); ?></div>
-                                    <div class="small text-muted"><?php echo htmlspecialchars($grade['room'] ?? 'TBA'); ?></div>
+                                <td class="small"><?php echo htmlspecialchars($grade['course_name'] ?? ''); ?></td>
+                                <td class="small">
+                                    <div class="fw-bold"><?php echo htmlspecialchars($grade['schedule'] ?? 'TBA'); ?></div>
+                                    <div class="text-muted"><?php echo htmlspecialchars($grade['room'] ?? 'TBA'); ?></div>
                                 </td>
                                 <td class="text-center"><?php echo $grade['units']; ?></td>
                                 <td class="text-center"><?php echo $grade['midterm'] !== null ? number_format($grade['midterm'], 2) : '-'; ?></td>
                                 <td class="text-center"><?php echo $grade['final'] !== null ? number_format($grade['final'], 2) : '-'; ?></td>
-                                <td class="text-center fw-bold"><?php echo $grade['grade'] !== null ? number_format($grade['grade'], 2) : '—'; ?></td>
+                                <td class="text-center fw-bold text-primary"><?php echo $grade['grade'] !== null ? number_format($grade['grade'], 2) : '—'; ?></td>
                                 <td class="text-center">
                                     <?php
-                                        $remarkClass = 'text-muted';
-                                        if ($grade['remarks'] === 'Passed' || $grade['remarks'] === 'Excellent' || $grade['remarks'] === 'Very Good' || $grade['remarks'] === 'Good' || $grade['remarks'] === 'Satisfactory')
-                                            $remarkClass = 'text-success';
-                                        elseif ($grade['remarks'] === 'Failed')
-                                            $remarkClass = 'text-danger';
-                                        elseif ($grade['remarks'] === 'INC')
-                                            $remarkClass = 'text-warning';
-                                        elseif ($grade['remarks'] === 'Dropped')
-                                            $remarkClass = 'text-secondary';
-                                    ?>
-                                    <span class="remarks-text <?php echo $remarkClass; ?>">
-                                        <?php echo htmlspecialchars($grade['remarks'] ?? 'No Grade'); ?>
-                                    </span>
+                $remark = $grade['remarks'] ?? 'Passed';
+                $remarkClass = 'text-muted';
+                if (in_array($remark, ['Passed', 'Excellent', 'Very Good', 'Good', 'Satisfactory', 'Fair']))
+                    $remarkClass = 'text-success';
+                elseif ($remark === 'Failed')
+                    $remarkClass = 'text-danger';
+                elseif ($remark === 'INC')
+                    $remarkClass = 'text-warning';
+                elseif ($remark === 'Dropped')
+                    $remarkClass = 'text-secondary';
+                echo '<span class="remarks-text ' . $remarkClass . ' fw-bold">' . htmlspecialchars($remark) . '</span>';
+?>
                                 </td>
                             </tr>
-                            <?php endforeach; ?>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="9" class="text-center py-4">No approved grades exist for this student yet.</td>
-                        </tr>
-                    <?php endif; ?>
+                            <?php
+            endif; ?>
+                        <?php
+        endforeach; ?>
+                    <?php
+    else: ?>
+                        <tr><td colspan="9" class="text-center py-5 text-muted">No academic records found for this page.</td></tr>
+                    <?php
+    endif; ?>
                 </tbody>
             </table>
         </div>
-        
-        <!-- Summary Section -->
-        <div class="row mt-4 align-items-center">
-            <div class="col-md-7">
-                <div style="font-size: 10pt; color: #4a5568; font-style: italic; border: 1px dashed #cbd5e0; padding: 12px; display: inline-block; border-radius: 6px; background-color: #f8fafc;">
-                    <i class="fas fa-stamp me-2"></i><strong>REMINDER:</strong> This document is <u>NOT VALID</u> without the official <strong>TESDA-BCAT Seal</strong>.
-                </div>
-            </div>
-            <div class="col-md-5">
-                <table class="table table-bordered summary-table shadow-sm bg-white mb-0">
-                    <tr>
-                        <td class="bg-light fw-bold" width="60%">Total Units Earned:</td>
-                        <td class="text-center fw-bold"><?php echo $totalUnits; ?></td>
-                    </tr>
-                    <?php if (!$hasBacklog && $honors): ?>
-                    <tr>
-                        <td class="bg-light fw-bold">Academic Honor:</td>
-                        <td class="text-center fw-bold text-success" style="background-color: #ffffff;"><i class="fas fa-medal me-1"></i> <?php echo htmlspecialchars($honors); ?></td>
-                    </tr>
-                    <?php endif; ?>
-                    <tr>
-                        <td class="bg-light fw-bold">Cumulative GWA:</td>
-                        <td class="text-center fw-bold"><?php echo $gwa !== null ? number_format($gwa, 2) : '0.00'; ?></td>
-                    </tr>
-                </table>
-            </div>
+
+                <!-- Remarks Explanation -->
+        <div class="remarks-note" style="font-size:0.75rem; margin-top:10px; color:#555;">
+            <strong>Remarks:</strong> This column indicates the status of each subject (Passed, Failed, INC, etc.). It is used for official purposes such as employment verification, promotion eligibility, and other transactions that require proof of academic performance.
         </div>
-        
-        <!-- Grading System & Signatures -->
-        <div class="row mt-4 align-items-end">
-            <div class="col-7">
-                <div class="d-flex align-items-center mb-3">
-                    <div class="me-3 p-2 bg-white border rounded">
-                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=<?php echo urlencode($verifyUrl); ?>" alt="Verification QR" width="100">
-                    </div>
-                    <div>
-                        <div class="fw-bold text-dark small">DOCUMENT VERIFICATION</div>
-                        <div class="text-muted" style="font-size: 0.7rem;">Scan this QR code to verify the authenticity of this official transcript of records.</div>
-                        <div class="mt-1 fw-bold text-primary" style="font-size: 0.65rem;">REF ID: <?php echo str_pad($transcriptId, 8, '0', STR_PAD_LEFT); ?></div>
-                    </div>
-                </div>
-                <div class="p-3 grading-system-box">
-                    <h6 class="mb-2 fw-bold text-primary" style="font-size: 0.9rem;"><i class="fas fa-info-circle me-2"></i>Grading System</h6>
-                    <div class="row text-muted" style="font-size: 0.75rem;">
-                        <div class="col-6">
-                            <ul class="list-unstyled mb-0">
-                                <li><strong>1.00-1.25</strong>: Excellent | <strong>1.50-1.75</strong>: Very Good</li>
-                                <li><strong>2.00-2.25</strong>: Good | <strong>2.50-2.75</strong>: Satisfactory</li>
-                            </ul>
-                        </div>
-                        <div class="col-6">
-                            <ul class="list-unstyled mb-0">
-                                <li><strong>3.00</strong>: Passing | <strong>5.00</strong>: Failure</li>
-                                <li><strong>INC</strong>: Incomplete | <strong>DRP</strong>: Dropped</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-5">
-                <div class="signature-section">
-                    <div class="signature-block">
-                        <div class="sig-name" style="font-size: 12pt; border-bottom: 1px solid #1a202c; padding-bottom: 2px; margin-bottom: 4px;">
-                            <?php echo htmlspecialchars($registrarName); ?>
-                        </div>
-                        <div class="sig-title" style="text-transform: uppercase; font-weight: 600; font-size: 0.85rem;"><?php echo htmlspecialchars($registrarPosition); ?></div>
-                        <div style="font-size: 7.5pt; margin-top: 15px; color: #718096; line-height: 1.4;">
-                            Authorized Signature<br>
-                            Date Generated: <?php echo date('M d, Y h:i A'); ?><br>
-                            <em>Not valid without official dry seal.</em>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+
+        <?php if ($isLastPage): ?>
+        <div style="flex: 1;"></div>
+        <?php
+    endif; ?>
+
+        <?php renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $transcriptId); ?>
     </div>
+    <?php
+endforeach; ?>
 
     <!-- Auto trigger Print Dialog on load -->
     <script>

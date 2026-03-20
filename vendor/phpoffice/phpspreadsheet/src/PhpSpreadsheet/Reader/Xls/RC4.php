@@ -12,7 +12,7 @@ class RC4
     protected int $j = 0;
 
     /**
-     * RC4 stream decryption/encryption constructor.
+     * RC4 stream decryption/encryption constrcutor.
      *
      * @param string $key Encryption key/passphrase
      */

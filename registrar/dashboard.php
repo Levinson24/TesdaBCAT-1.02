@@ -18,7 +18,7 @@ $isStaff = ($userRole === 'registrar_staff');
 // Get statistics
 $studentWhere = "WHERE status = 'active'";
 $instructorWhere = "WHERE status = 'active'";
-$courseWhere = "WHERE status = 'active'";
+$curriculumWhere = "WHERE status = 'active'";
 $sectionWhere = "WHERE cs.status = 'active'";
 $gradeWhere = "WHERE g.status = 'submitted'";
 $enrollmentWhere = "WHERE e.status = 'enrolled' AND cs.status = 'active'";
@@ -26,7 +26,7 @@ $enrollmentWhere = "WHERE e.status = 'enrolled' AND cs.status = 'active'";
 if ($isStaff) {
     $studentWhere .= " AND dept_id = $deptId";
     $instructorWhere .= " AND dept_id = $deptId";
-    $courseWhere .= " AND dept_id = $deptId";
+    $curriculumWhere .= " AND dept_id = $deptId";
     $sectionWhere .= " AND c.dept_id = $deptId";
     $gradeWhere .= " AND s.dept_id = $deptId";
     $enrollmentWhere .= " AND s.dept_id = $deptId";
@@ -38,10 +38,10 @@ $totalStudents = $result->fetch_assoc()['total'];
 $result = $conn->query("SELECT COUNT(*) as total FROM instructors $instructorWhere");
 $totalInstructors = $result->fetch_assoc()['total'];
 
-$result = $conn->query("SELECT COUNT(*) as total FROM courses $courseWhere");
+$result = $conn->query("SELECT COUNT(*) as total FROM curriculum $curriculumWhere");
 $totalCourses = $result->fetch_assoc()['total'];
 
-$result = $conn->query("SELECT COUNT(*) as total FROM class_sections cs JOIN courses c ON cs.course_id = c.course_id $sectionWhere");
+$result = $conn->query("SELECT COUNT(*) as total FROM class_sections cs JOIN curriculum c ON cs.curriculum_id = c.curriculum_id $sectionWhere");
 $activeSections = $result->fetch_assoc()['total'];
 
 $result = $conn->query("SELECT COUNT(*) as total FROM grades g JOIN students s ON g.student_id = s.student_id $gradeWhere");
@@ -61,8 +61,8 @@ $pendingGrades = $conn->query("
         g.*,
         s.student_no,
         CONCAT(IFNULL(s.first_name,''), ' ', IFNULL(s.last_name,'')) as student_name,
-        c.course_code,
-        c.course_name,
+        cur.class_code AS course_code,
+        c.subject_name AS course_name,
         cs.section_name,
         cs.semester,
         cs.school_year,
@@ -72,7 +72,8 @@ $pendingGrades = $conn->query("
     JOIN students s ON g.student_id = s.student_id
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     $gradeWhere
     ORDER BY g.submitted_at DESC
@@ -95,7 +96,7 @@ $pendingGrades = $conn->query("
                             <div>
                                 <h2 class="display-6 fw-bold mb-1 text-primary"><?php echo htmlspecialchars($currentUser['username'] ?? 'Registrar'); ?></h2>
                                 <p class="text-accent-indigo fw-semibold mb-3">
-                                    <i class="fas fa-id-badge me-1"></i> <?php echo (getCurrentUserRole() === 'registrar') ? 'Official Registrar Portal' : 'Registrar Staff Access'; ?>
+                                    <i class="fas fa-id-badge me-1"></i> <?php echo (getCurrentUserRole() === 'registrar') ? 'Official Registrar Portal' : 'Clerk Access'; ?>
                                 </p>
                             </div>
                             <div class="d-flex flex-column align-items-end">
@@ -110,7 +111,7 @@ $pendingGrades = $conn->query("
                                 <div class="text-muted small text-uppercase fw-bold mb-1">Account Role</div>
                                 <div class="fw-semibold text-dark"><?php 
                                     if ($userRole === 'registrar') echo 'Head Registrar';
-                                    elseif ($userRole === 'registrar_staff') echo 'Registrar Staff';
+                                    elseif ($userRole === 'registrar_staff') echo 'Clerk';
                                     else echo ucfirst($userRole); 
                                 ?></div>
                             </div>
@@ -130,59 +131,48 @@ $pendingGrades = $conn->query("
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-3 mb-3">
-        <div class="card premium-card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary mb-3">
-                    <i class="fas fa-user-graduate"></i>
-                </div>
-                <div>
-                    <div class="text-muted small fw-bold text-uppercase opacity-75">Active Students</div>
-                    <h3 class="mb-0 fw-bold display-6 text-primary"><?php echo number_format($totalStudents); ?></h3>
-                </div>
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon-wrapper bg-primary bg-opacity-10 text-primary">
+                <i class="fas fa-user-graduate"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value text-primary"><?php echo number_format($totalStudents); ?></span>
+                <span class="stat-label">Active Students</span>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card premium-card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="stat-card-icon-v2 bg-info bg-opacity-10 text-info mb-3">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                </div>
-                <div>
-                    <div class="text-muted small fw-bold text-uppercase opacity-75">Faculty Registry</div>
-                    <h3 class="mb-0 fw-bold display-6 text-info"><?php echo number_format($totalInstructors); ?></h3>
-                </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon-wrapper bg-info bg-opacity-10 text-info">
+                <i class="fas fa-chalkboard-teacher"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value text-info"><?php echo number_format($totalInstructors); ?></span>
+                <span class="stat-label">Faculty Registry</span>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card premium-card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="stat-card-icon-v2 bg-success bg-opacity-10 text-success mb-3">
-                    <i class="fas fa-layer-group"></i>
-                </div>
-                <div>
-                    <div class="text-muted small fw-bold text-uppercase opacity-75">Active Sections</div>
-                    <h3 class="mb-0 fw-bold display-6 text-success"><?php echo number_format($activeSections); ?></h3>
-                </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon-wrapper bg-success bg-opacity-10 text-success">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value text-success"><?php echo number_format($activeSections); ?></span>
+                <span class="stat-label">Active Sections</span>
             </div>
         </div>
     </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card premium-card h-100 border-0 shadow-sm">
-            <div class="card-body">
-                <div class="stat-card-icon-v2 bg-warning bg-opacity-10 text-warning mb-3">
-                    <i class="fas fa-clipboard-check"></i>
-                </div>
-                <div>
-                    <div class="text-muted small fw-bold text-uppercase opacity-75">Grade Approvals</div>
-                    <h3 class="mb-0 fw-bold display-6 text-warning"><?php echo number_format($pendingApprovals); ?></h3>
-                </div>
+    <div class="col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon-wrapper bg-warning bg-opacity-10 text-warning">
+                <i class="fas fa-clipboard-check"></i>
+            </div>
+            <div class="stat-content">
+                <span class="stat-value text-warning"><?php echo number_format($pendingApprovals); ?></span>
+                <span class="stat-label">Grade Approvals</span>
             </div>
         </div>
     </div>
@@ -227,32 +217,39 @@ $pendingGrades = $conn->query("
             <div class="card-body px-4 pb-4 pt-0">
                 <div class="row g-3">
                     <div class="col-6">
-                        <a href="students.php" class="btn btn-light bg-info bg-opacity-10 border-0 text-info w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all">
-                            <i class="fas fa-user-graduate mb-2 fa-2x"></i>
+                        <a href="students.php" class="btn btn-light bg-info bg-opacity-10 border-0 text-info w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all hover-lift shadow-sm-hover">
+                            <div class="icon-box-premium mb-2" style="background: rgba(13, 202, 240, 0.15); color: #0dcaf0; width: 56px; height: 56px; font-size: 1.5rem;">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
                             <span class="fw-bold">Student Registry</span>
                         </a>
                     </div>
                     <div class="col-6">
-                        <a href="enrollments.php" class="btn btn-light bg-primary bg-opacity-10 border-0 text-primary w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all">
-                            <i class="fas fa-user-plus mb-2 fa-2x"></i>
+                        <a href="enrollments.php" class="btn btn-light bg-primary bg-opacity-10 border-0 text-primary w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all hover-lift shadow-sm-hover">
+                            <div class="icon-box-premium mb-2" style="background: rgba(0, 56, 168, 0.15); color: #0038A8; width: 56px; height: 56px; font-size: 1.5rem;">
+                                <i class="fas fa-user-plus"></i>
+                            </div>
                             <span class="fw-bold">Enroll Student</span>
                         </a>
                     </div>
                     <div class="col-6">
-                        <a href="grades.php" class="btn btn-light bg-warning bg-opacity-10 border-0 text-warning w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all position-relative">
-                            <i class="fas fa-clipboard-check mb-2 fa-2x"></i>
+                        <a href="grades.php" class="btn btn-light bg-warning bg-opacity-10 border-0 text-warning w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all position-relative hover-lift shadow-sm-hover">
+                            <div class="icon-box-premium mb-2" style="background: rgba(255, 193, 7, 0.15); color: #ffc107; width: 56px; height: 56px; font-size: 1.5rem;">
+                                <i class="fas fa-clipboard-check"></i>
+                            </div>
                             <span class="fw-bold">Process Grades</span>
                             <?php if ($pendingApprovals > 0): ?>
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow">
+                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger shadow-sm" style="border: 2px solid white;">
                                     <?php echo $pendingApprovals; ?>
                                 </span>
-                            <?php
-endif; ?>
+                            <?php endif; ?>
                         </a>
                     </div>
                     <div class="col-6">
-                        <a href="transcripts.php" class="btn btn-light bg-success bg-opacity-10 border-0 text-success w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all">
-                            <i class="fas fa-file-alt mb-2 fa-2x"></i>
+                        <a href="transcripts.php" class="btn btn-light bg-success bg-opacity-10 border-0 text-success w-100 py-4 d-flex flex-column align-items-center rounded-4 transition-all hover-lift shadow-sm-hover">
+                            <div class="icon-box-premium mb-2" style="background: rgba(25, 135, 84, 0.15); color: #198754; width: 56px; height: 56px; font-size: 1.5rem;">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
                             <span class="fw-bold">Transcripts</span>
                         </a>
                     </div>
@@ -270,20 +267,20 @@ endif; ?>
                     <i class="fas fa-clipboard-list me-2 text-warning"></i>
                     <h5 class="mb-0 fw-bold">Recent Grade Submissions</h5>
                 </div>
-                <a href="grades.php" class="btn btn-primary rounded-pill px-4">
-                    Full Review Registry
+                <a href="grades.php" class="btn-premium-action px-4 py-2" style="font-size: 0.85rem;">
+                    <i class="fas fa-list-check"></i> Full Review Registry
                 </a>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-mobile-card">
-                        <thead class="gradient-navy text-white">
+                    <table class="table table-hover align-middle mb-0 premium-table">
+                        <thead>
                             <tr>
                                 <th class="ps-4 text-warning border-0 small text-uppercase">Student Identity</th>
                                 <th class="border-0 small text-uppercase">Academic Subject</th>
                                 <th class="border-0 small text-uppercase">Cycle Info</th>
                                 <th class="border-0 small text-uppercase">Faculty</th>
-                                <th class="border-0 small text-uppercase">Mid/Final</th>
+                                <!-- Removed Mid/Final -->
                                 <th class="border-0 small text-uppercase">Grade</th>
                                 <th class="border-0 small text-uppercase">Timeline</th>
                                 <th class="text-end pe-4 border-0 small text-uppercase">Actions</th>
@@ -308,10 +305,7 @@ endif; ?>
                                     <td data-label="Faculty">
                                         <div class="small fw-semibold"><?php echo htmlspecialchars($grade['instructor_name'] ?? ''); ?></div>
                                     </td>
-                                    <td data-label="Mid/Final">
-                                        <span class="text-muted small">M:</span> <?php echo $grade['midterm'] !== null ? number_format($grade['midterm'], 2) : '-'; ?>
-                                        <span class="text-muted small ms-1">F:</span> <?php echo $grade['final'] !== null ? number_format($grade['final'], 2) : '-'; ?>
-                                    </td>
+                                    <!-- Removed Mid/Final -->
                                     <td data-label="Grade">
                                         <span class="badge bg-primary px-3"><?php echo $grade['grade'] !== null ? number_format($grade['grade'], 2) : '—'; ?></span>
                                     </td>
@@ -323,10 +317,10 @@ endif; ?>
                                         <div class="d-flex justify-content-end gap-1">
                                             <form method="POST" action="grades.php" class="d-inline">
                                                 <input type="hidden" name="grade_id" value="<?php echo $grade['grade_id']; ?>">
-                                                <button type="submit" name="action" value="approve" class="btn btn-sm btn-success rounded-circle shadow-sm" style="width: 32px; height: 32px;" title="Approve" onclick="return confirm('Approve this grade?')">
+                                                <button type="submit" name="action" value="approve" class="btn-premium-view" style="background-color: #f0fdf4; color: #166534 !important;" title="Approve" onclick="return confirm('Approve this grade?')">
                                                     <i class="fas fa-check"></i>
                                                 </button>
-                                                <button type="submit" name="action" value="reject" class="btn btn-sm btn-danger rounded-circle shadow-sm" style="width: 32px; height: 32px;" title="Reject" onclick="return confirm('Reject this grade?')">
+                                                <button type="submit" name="action" value="reject" class="btn-premium-delete" style="width: 32px; height: 32px; font-size: 0.8rem;" title="Reject" onclick="return confirm('Reject this grade?')">
                                                     <i class="fas fa-times"></i>
                                                 </button>
                                             </form>

@@ -64,7 +64,8 @@ $gradesStmt = $conn->prepare("
            cs.actual_lec_hrs, cs.actual_lab_hrs, cs.actual_lec_units, cs.actual_lab_units
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     WHERE e.student_id = ? AND cs.school_year = ? AND cs.semester = ? AND e.status = 'enrolled'
     ORDER BY c.course_code ASC
@@ -132,8 +133,8 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grade Slip - <?php echo htmlspecialchars($student['last_name']); ?></title>
+    <title>Grade Slip - <?php echo htmlspecialchars($student['last_name']); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
     <style>
         @page {
             size: landscape; /* Excel sheets with many columns are often landscape */

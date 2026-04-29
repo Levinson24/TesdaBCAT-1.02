@@ -15,17 +15,18 @@ $pageTitle = 'Diploma Program Reports';
 require_once '../includes/header.php';
 
 // 1. Grade Distribution for the Diploma Program
+// 1. Prepare the Grade Distribution Query
 $distQuery = $conn->prepare("
-    SELECT 
-        remarks, 
-        COUNT(*) as count
+    SELECT g.remarks, COUNT(*) as count 
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE c.dept_id = ? AND g.status = 'approved'
-    GROUP BY remarks
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    WHERE cur.dept_id = ?
+    GROUP BY g.remarks
 ");
+
+// 2. Bind and Execute
 $distQuery->bind_param("i", $deptId);
 $distQuery->execute();
 $distribution = $distQuery->get_result();
@@ -43,23 +44,26 @@ $workloadQuery = $conn->prepare("
     SELECT 
         i.first_name, i.last_name, i.instructor_id_no,
         COUNT(cs.section_id) as total_sections,
-        COALESCE(SUM(c.units), 0) as total_units,
-        (SELECT COUNT(*) FROM enrollments e
+        COALESCE(SUM(subj.units), 0) as total_units,
+        (SELECT COUNT(*) FROM enrollments e 
          JOIN class_sections s ON e.section_id = s.section_id
-         WHERE s.instructor_id = i.instructor_id 
+         WHERE s.instructor_id = i.instructor_id
          AND s.status = 'active'
          AND s.semester = ?
          AND s.school_year = ?) as total_students
     FROM instructors i
-    LEFT JOIN class_sections cs ON i.instructor_id = cs.instructor_id 
+    LEFT JOIN class_sections cs ON i.instructor_id = cs.instructor_id
         AND cs.status = 'active'
         AND cs.semester = ?
         AND cs.school_year = ?
-    LEFT JOIN courses c ON cs.course_id = c.course_id
+    LEFT JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    LEFT JOIN subjects subj ON cur.subject_id = subj.subject_id
     WHERE i.dept_id = ?
     GROUP BY i.instructor_id
     ORDER BY total_units DESC
 ");
+
+// Note: The parameters must match the order of the '?' in the query above
 $workloadQuery->bind_param("ssssi", $currentSem, $currentSY, $currentSem, $currentSY, $deptId);
 $workloadQuery->execute();
 $workload = $workloadQuery->get_result();
@@ -67,7 +71,8 @@ $workload = $workloadQuery->get_result();
 // 3. Subject Performance Analytics
 $perfQuery = $conn->prepare("
     SELECT 
-        c.course_code, c.course_name,
+        subj.subject_id as course_code, 
+        subj.subject_name as course_name,
         COUNT(*) as total_grades,
         SUM(CASE WHEN g.remarks = 'Passed' THEN 1 ELSE 0 END) as passed_count,
         SUM(CASE WHEN g.remarks = 'Failed' THEN 1 ELSE 0 END) as failed_count,
@@ -77,11 +82,13 @@ $perfQuery = $conn->prepare("
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE c.dept_id = ? AND g.status = 'approved'
-    GROUP BY c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
+    WHERE cur.dept_id = ? AND g.status = 'approved'
+    GROUP BY subj.subject_id
     ORDER BY avg_grade ASC
 ");
+
 $perfQuery->bind_param("i", $deptId);
 $perfQuery->execute();
 $performance = $perfQuery->get_result();

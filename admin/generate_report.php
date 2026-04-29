@@ -21,12 +21,13 @@ if ($type === 'students') {
 
     $query = "
         SELECT s.student_no, s.first_name, s.last_name, s.year_level, s.email, s.contact_number, s.status,
-               SUM(g.grade * c.units) / NULLIF(SUM(c.units), 0) as gwa
+               SUM(g.grade * subj.units) / NULLIF(SUM(subj.units), 0) as gwa
         FROM students s
         LEFT JOIN grades g ON s.student_id = g.student_id AND g.status = 'approved'
         LEFT JOIN enrollments e ON g.enrollment_id = e.enrollment_id
         LEFT JOIN class_sections cs ON e.section_id = cs.section_id
-        LEFT JOIN courses c ON cs.course_id = c.course_id
+        LEFT JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+        LEFT JOIN subjects subj ON cur.subject_id = subj.subject_id
         GROUP BY s.student_id
         ORDER BY s.last_name ASC
     ";

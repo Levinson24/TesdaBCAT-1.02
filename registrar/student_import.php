@@ -63,22 +63,22 @@ $depts = $conn->query("SELECT dept_id, title_diploma_program FROM departments WH
                         <label class="form-label fw-bold">1. Select Target Department & Program (Default)</label>
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <select name="default_dept_id" class="form-select rounded-3 p-3 shadow-sm border-0 bg-light" required>
+                                <select name="default_dept_id" class="form-select border-0 bg-light p-3 rounded-4 shadow-sm" required>
                                     <option value="">-- All Departments --</option>
                                     <?php while ($d = $depts->fetch_assoc()): ?>
                                         <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
                                     <?php endwhile; ?>
                                 </select>
-                                <small class="text-muted">Used if the file doesn't specify a department.</small>
+                                <small class="text-muted mt-2 d-block ps-2">Used if the file doesn't specify a department.</small>
                             </div>
                             <div class="col-md-6">
-                                <select name="default_program_id" class="form-select rounded-3 p-3 shadow-sm border-0 bg-light" required>
+                                <select name="default_program_id" class="form-select border-0 bg-light p-3 rounded-4 shadow-sm" required>
                                     <option value="">-- All Programs --</option>
                                     <?php while ($p = $progs->fetch_assoc()): ?>
                                         <option value="<?php echo $p['program_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
                                     <?php endwhile; ?>
                                 </select>
-                                <small class="text-muted">Used if the file doesn't specify a program.</small>
+                                <small class="text-muted mt-2 d-block ps-2">Used if the file doesn't specify a program.</small>
                             </div>
                         </div>
                     </div>
@@ -137,8 +137,19 @@ $depts = $conn->query("SELECT dept_id, title_diploma_program FROM departments WH
 <style>
 .cursor-pointer { cursor: pointer; }
 .transition-all { transition: all 0.3s ease; }
-.hover-bg-light:hover { background-color: #f8fafc; border-color: var(--primary-indigo) !important; }
+.hover-bg-light:hover { background-color: #f8fafc; border-color: #0038A8 !important; }
 .border-dashed { border-style: dashed !important; }
+.upload-area {
+    border: 2px dashed #e2e8f0;
+    background: #f8fafc;
+    transition: all 0.3s ease;
+}
+.upload-area:hover {
+    border-color: #0038A8;
+    background: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 56, 168, 0.05);
+}
 </style>
 
 <script>

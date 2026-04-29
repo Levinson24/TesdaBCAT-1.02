@@ -14,7 +14,7 @@ $instructorId = $_GET['id'] ?? 0;
 
 // Fetch instructor details and verify they belong to this department
 $stmt = $conn->prepare("
-    SELECT i.*, u.username, d.title_diploma_program as dept_name 
+    SELECT i.*, u.username, u.profile_image, d.title_diploma_program as dept_name 
     FROM instructors i
     JOIN users u ON i.user_id = u.user_id
     LEFT JOIN departments d ON i.dept_id = d.dept_id
@@ -30,10 +30,11 @@ if (!$instructor) {
 
 // Fetch sections handled by this instructor
 $sections = $conn->prepare("
-    SELECT cs.*, c.course_code, c.course_name,
+    SELECT cs.*, s.subject_id as course_code, s.subject_name as course_name,
            (SELECT COUNT(*) FROM enrollments WHERE section_id = cs.section_id) as enrolled_count
     FROM class_sections cs
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s ON cur.subject_id = s.subject_id
     WHERE cs.instructor_id = ?
     ORDER BY cs.school_year DESC, cs.semester DESC
 ");
@@ -50,12 +51,16 @@ require_once '../includes/header.php';
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-4">
+    <div class="col-12 col-lg-4">
         <!-- Instructor Profile Card -->
         <div class="card shadow-sm border-0 rounded-4 overflow-hidden h-100">
             <div class="card-body p-4 text-center">
-                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 100px; height: 100px;">
-                    <i class="fas fa-chalkboard-teacher fa-3x text-primary"></i>
+                <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center mx-auto mb-3 overflow-hidden" style="width: 100px; height: 100px;">
+                    <?php if (!empty($instructor['profile_image'])): ?>
+                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($instructor['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                    <?php else: ?>
+                        <i class="fas fa-chalkboard-teacher fa-3x text-primary"></i>
+                    <?php endif; ?>
                 </div>
                 <h4 class="fw-bold mb-1"><?php echo htmlspecialchars($instructor['first_name'] . ' ' . $instructor['last_name']); ?></h4>
                 <p class="text-muted small mb-3"><?php echo htmlspecialchars($instructor['instructor_id_no']); ?></p>
@@ -79,7 +84,7 @@ require_once '../includes/header.php';
         </div>
     </div>
 
-    <div class="col-lg-8">
+    <div class="col-12 col-lg-8">
         <!-- Teaching Load Card -->
         <div class="card shadow-sm border-0 rounded-4">
             <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">

@@ -68,83 +68,31 @@ while ($c = $colleges_list->fetch_assoc()) {
     $colleges[] = $c;
 }
 ?>
-<style>
-    .premium-card { border-radius: 1rem; }
-    .bg-dark-navy { background-color: #0f172a !important; }
-    .depts-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.70rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
-    }
-    .depts-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 0.85rem;
-    }
-    /* Premium Action Buttons */
-    .btn-premium-edit {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155 !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    .btn-premium-edit:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
 
-    .btn-premium-delete {
-        width: 36px; height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50%;
-        color: #ef4444 !important;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        border: none;
-        cursor: pointer;
-    }
-    .btn-premium-delete:hover {
-        background-color: #fef2f2;
-        border-color: #fecaca;
-        color: #dc2626 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-    }
-</style>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
-        <h5 class="mb-0 text-white fw-bold ms-2">
+    <div class="card-header gradient-navy p-3 d-flex flex-wrap justify-content-between align-items-center rounded-top gap-3">
+        <h5 class="mb-0 text-white fw-bold ms-2 flex-grow-1">
             <i class="fas fa-building me-2 text-info"></i> Academic Diploma Programs
         </h5>
+        
+        <div class="search-box-container">
+            <div class="input-group input-group-sm rounded-pill overflow-hidden border-0 shadow-sm" style="background: rgba(255,255,255,0.15); backdrop-filter: blur(5px);">
+                <span class="input-group-text bg-transparent border-0 text-white-50 ps-3">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" id="deptSearchInput" class="form-control bg-transparent border-0 text-white placeholder-light" placeholder="Search Portfolio Code or Title..." onkeyup="filterDepts()" style="box-shadow: none;">
+                <span class="input-group-text bg-transparent border-0 text-white-50 pe-3" id="searchCounter" style="font-size: 0.75rem; font-weight: 600;"></span>
+            </div>
+        </div>
+
         <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addModal">
             <i class="fas fa-plus me-1"></i> Add Portfolio
         </button>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 depts-table data-table">
+            <table class="table table-hover align-middle mb-0 depts-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-4">DEPT CODE</th>
@@ -158,28 +106,28 @@ while ($c = $colleges_list->fetch_assoc()) {
                 </thead>
                 <tbody>
                     <?php while ($d = $departments->fetch_assoc()): ?>
-                    <tr>
+                    <tr class="table-row-premium align-middle">
                         <td class="ps-4" data-label="Code"><strong><?php echo htmlspecialchars($d['dept_code']); ?></strong></td>
                         <td data-label="Title Diploma Program"><?php echo htmlspecialchars($d['title_diploma_program']); ?></td>
                         <td data-label="College"><span class="text-muted small"><?php echo htmlspecialchars($d['college_name'] ?? 'Unassigned'); ?></span></td>
                         <td data-label="Programs"><span class="badge bg-info bg-opacity-10 text-info"><?php echo $d['program_count']; ?></span></td>
                         <td data-label="Faculty"><span class="badge bg-secondary bg-opacity-10 text-secondary"><?php echo $d['faculty_count']; ?></span></td>
                         <td data-label="Status">
-                            <span class="badge rounded-pill bg-<?php echo $d['status'] === 'active' ? 'success' : 'secondary'; ?> bg-opacity-10 text-<?php echo $d['status'] === 'active' ? 'success' : 'secondary'; ?> px-3">
-                                <?php echo ucfirst($d['status']); ?>
+                            <span class="status-pill <?php echo $d['status'] === 'active' ? 'status-active' : 'status-inactive'; ?>">
+                                <?php echo ucfirst($d['status'] ?? 'active'); ?>
                             </span>
                         </td>
-                        <td class="text-end pe-4" data-label="Control Actions">
-                            <div class="d-flex justify-content-end gap-1">
+                        <td class="text-end pe-4 py-3" data-label="Control Actions">
+                            <div class="table-actions-v2">
                                 <button class="btn-premium-edit" onclick='editDept(<?php echo json_encode($d); ?>)'>
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
-                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this diploma program?')">
+                                <form method="POST" onsubmit="return confirm('Delete this diploma program?')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="dept_id" value="<?php echo $d['dept_id']; ?>">
                                     <button type="submit" class="btn-premium-delete">
-                                        <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
                             </div>
@@ -195,37 +143,59 @@ endwhile; ?>
 
 <!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off">
                 <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add Diploma Program</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-building"></i>
+                        <span>Add Diploma Program</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label>Diploma Program Code</label>
-                        <input type="text" name="dept_code" class="form-control" placeholder="e.g. ICT" required>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-info-circle me-2"></i>Program Configuration</span>
                     </div>
-                    <div class="mb-3">
-                        <label>Title Diploma Program</label>
-                        <input type="text" name="title_diploma_program" class="form-control" placeholder="e.g. Information & Communication Technology" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>College</label>
-                        <select name="college_id" class="form-select">
-                            <option value="">-- No College --</option>
-                            <?php foreach ($colleges as $c): ?>
-                                <option value="<?php echo $c['college_id']; ?>"><?php echo htmlspecialchars($c['college_name']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Diploma Program Code</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="dept_code" class="form-control" placeholder="e.g. ICT" required>
+                                    <i class="fas fa-qrcode"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Title Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="title_diploma_program" class="form-control" placeholder="e.g. Information Technology" required>
+                                    <i class="fas fa-quote-left"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>College Affiliation</label>
+                                <div class="input-wrapper">
+                                    <select name="college_id" class="form-select">
+                                        <option value="">-- No College --</option>
+                                        <?php foreach ($colleges as $c): ?>
+                                            <option value="<?php echo $c['college_id']; ?>"><?php echo htmlspecialchars($c['college_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Diploma Program</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-save me-2"></i>Save Diploma Program</button>
                 </div>
             </form>
         </div>
@@ -234,45 +204,72 @@ endforeach; ?>
 
 <!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="dept_id" id="edit_id">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Diploma Program</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i>
+                        <span>Edit Diploma Program</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label>Diploma Program Code</label>
-                        <input type="text" name="dept_code" id="edit_code" class="form-control" required>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-sliders-h me-2"></i>Update Configuration</span>
                     </div>
-                    <div class="mb-3">
-                        <label>Title Diploma Program</label>
-                        <input type="text" name="title_diploma_program" id="edit_name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>College</label>
-                        <select name="college_id" id="edit_college_id" class="form-select">
-                            <option value="">-- No College --</option>
-                            <?php foreach ($colleges as $c): ?>
-                                <option value="<?php echo $c['college_id']; ?>"><?php echo htmlspecialchars($c['college_name']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Status</label>
-                        <select name="status" id="edit_status" class="form-select">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Diploma Program Code</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="dept_code" id="edit_code" class="form-control" required>
+                                    <i class="fas fa-qrcode"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Title Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="title_diploma_program" id="edit_name" class="form-control" required>
+                                    <i class="fas fa-quote-left"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>College Affiliation</label>
+                                <div class="input-wrapper">
+                                    <select name="college_id" id="edit_college_id" class="form-select">
+                                        <option value="">-- No College --</option>
+                                        <?php foreach ($colleges as $c): ?>
+                                            <option value="<?php echo $c['college_id']; ?>"><?php echo htmlspecialchars($c['college_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select">
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Diploma Program</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-sync me-2"></i>Update Diploma Program</button>
                 </div>
             </form>
         </div>
@@ -287,6 +284,24 @@ function editDept(d) {
     document.getElementById('edit_college_id').value = d.college_id || '';
     document.getElementById('edit_status').value = d.status;
     new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+// Filter departments using DataTables API
+function filterDepts() {
+    const input = document.getElementById('deptSearchInput');
+    const filter = input.value.trim();
+    const table = $('.data-table').DataTable();
+    const counter = document.getElementById('searchCounter');
+
+    // Use DataTables search API
+    table.search(filter).draw();
+
+    // Update the counter
+    const info = table.page.info();
+    if (filter === "") {
+        counter.textContent = "";
+    } else {
+        counter.textContent = info.recordsDisplay + " found";
+    }
 }
 </script>
 

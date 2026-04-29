@@ -27,7 +27,7 @@ $studentCount->bind_param("i", $deptId);
 $studentCount->execute();
 $studentCount = $studentCount->get_result()->fetch_row()[0];
 
-$courseCount = $conn->prepare("SELECT COUNT(*) FROM courses WHERE dept_id = ? AND status = 'active'");
+$courseCount = $conn->prepare("SELECT COUNT(*) FROM curriculum WHERE dept_id = ? AND status = 'active'");
 $courseCount->bind_param("i", $deptId);
 $courseCount->execute();
 $courseCount = $courseCount->get_result()->fetch_row()[0];
@@ -41,8 +41,8 @@ $passStats = $conn->prepare("
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE c.dept_id = ? AND g.status = 'approved'
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    WHERE cur.dept_id = ? AND g.status = 'approved'
 ");
 $passStats->bind_param("i", $deptId);
 $passStats->execute();
@@ -51,38 +51,45 @@ $deptPassRate = ($passData['total'] > 0) ? round(($passData['passed'] / $passDat
 
 // Top performing subjects by pass rate
 $topSubjects = $conn->prepare("
-    SELECT c.course_code, c.course_name, 
-           ROUND((SUM(CASE WHEN g.remarks = 'Passed' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as pass_rate
+    SELECT 
+        subj.subject_id as course_code, 
+        subj.subject_name as course_name,
+        ROUND((SUM(CASE WHEN g.remarks = 'Passed' THEN 1 ELSE 0 END) / COUNT(*)) * 100, 1) as pass_rate
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE c.dept_id = ? AND g.status = 'approved'
-    GROUP BY c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
+    WHERE cur.dept_id = ? AND g.status = 'approved'
+    GROUP BY subj.subject_id
     HAVING COUNT(*) > 5
     ORDER BY pass_rate DESC
     LIMIT 3
 ");
+
 $topSubjects->bind_param("i", $deptId);
 $topSubjects->execute();
-$topSubjects = $topSubjects->get_result();
+$topSubjectsResult = $topSubjects->get_result();
 
 // Recent grade submissions in this department
-$recentGrades = $conn->prepare("
-    SELECT g.*, s.first_name, s.last_name, c.course_name, i.first_name as inst_first, i.last_name as inst_last
+$recentGradesQuery = $conn->prepare("
+    SELECT g.*, s.first_name, s.last_name, subj.subject_name as course_name, i.first_name as inst_first, i.last_name as inst_last
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
     JOIN students s ON e.student_id = s.student_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
-    WHERE c.dept_id = ?
+    WHERE cur.dept_id = ?
     ORDER BY g.updated_at DESC
     LIMIT 5
 ");
-$recentGrades->bind_param("i", $deptId);
-$recentGrades->execute();
-$recentGrades = $recentGrades->get_result();
+
+$recentGradesQuery->bind_param("i", $deptId);
+$recentGradesQuery->execute();
+$recentGrades = $recentGradesQuery->get_result();
+
 ?>
 
 <div class="row mb-5">
@@ -208,7 +215,7 @@ $recentGrades = $recentGrades->get_result();
                 <h6 class="small fw-bold text-muted text-uppercase mb-3 mt-4">Top Performing Subjects</h6>
                 <div class="list-group list-group-flush border-0">
                     <?php if ($topSubjects->num_rows > 0): ?>
-                        <?php while ($subj = $topSubjects->fetch_assoc()): ?>
+                       <?php while ($subj = $topSubjectsResult->fetch_assoc()): ?>
                             <div class="list-group-item bg-transparent px-0 py-3 border-0 d-flex align-items-center">
                                 <div class="bg-success bg-opacity-10 text-success p-2 rounded-3 me-3 fw-bold small" style="min-width: 65px; text-align: center;">
                                     <?php echo htmlspecialchars($subj['course_code']); ?>

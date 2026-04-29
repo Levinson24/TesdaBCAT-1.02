@@ -32,11 +32,12 @@ $gpa = calculateGPA($studentId);
 
 // Get total units earned
 $stmt = $conn->prepare("
-    SELECT SUM(c.units) as total_units
+    SELECT SUM(s.units) as total_units
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s ON cur.subject_id = s.subject_id
     WHERE g.student_id = ? AND g.status = 'approved' AND g.remarks = 'Passed'
 ");
 $stmt->bind_param("i", $studentId);
@@ -60,21 +61,20 @@ $currentEnrollments->close();
 // Get recent grades
 $recentGrades = $conn->prepare("
     SELECT 
-        c.course_code,
-        c.course_name,
+        s.subject_id,
+        s.subject_name,
         cs.semester,
         cs.school_year,
-        g.midterm,
-        g.final,
         g.grade,
         g.remarks,
         g.status
-    FROM grades g
-    JOIN enrollments e ON g.enrollment_id = e.enrollment_id
+    FROM enrollments e
+    LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE g.student_id = ?
-    ORDER BY cs.school_year DESC, cs.semester DESC
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s ON cur.subject_id = s.subject_id
+    WHERE e.student_id = ?
+    ORDER BY cs.school_year DESC, cs.semester DESC, e.enrollment_date DESC
     LIMIT 10
 ");
 $recentGrades->bind_param("i", $studentId);
@@ -85,16 +85,17 @@ $recentGrades = $recentGrades->get_result();
 $mySchedules = $conn->prepare("
     SELECT 
         cs.*,
-        c.course_code,
-        c.course_name,
-        c.units,
+        s.subject_id,
+        s.subject_name,
+        s.units,
         CONCAT(i.first_name, ' ', i.last_name) as instructor_name
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s ON cur.subject_id = s.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     WHERE e.student_id = ? AND e.status = 'enrolled' AND cs.status = 'active'
-    ORDER BY cs.semester DESC, c.course_code
+    ORDER BY cs.semester DESC, s.subject_id
 ");
 $mySchedules->bind_param("i", $studentId);
 $mySchedules->execute();
@@ -102,11 +103,12 @@ $mySchedules = $mySchedules->get_result();
 
 // NEW: Get grades approved in the last 7 days for notifications
 $newGradesStmt = $conn->prepare("
-    SELECT c.course_code, c.course_name, g.grade, g.approved_at
+    SELECT s.subject_id, s.subject_name, g.grade, g.approved_at
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s ON cur.subject_id = s.subject_id
     WHERE g.student_id = ? AND g.status = 'approved' 
     AND g.approved_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
     ORDER BY g.approved_at DESC
@@ -132,8 +134,8 @@ $newGrades = $newGradesStmt->get_result();
                 <div class="col-md-6 col-lg-4">
                     <div class="bg-white p-3 rounded-3 border d-flex justify-content-between align-items-center">
                         <div>
-                            <div class="fw-bold text-dark"><?php echo htmlspecialchars($ng['course_code']); ?></div>
-                            <div class="small text-muted"><?php echo htmlspecialchars($ng['course_name']); ?></div>
+                            <div class="fw-bold text-dark"><?php echo htmlspecialchars($ng['subject_id']); ?></div>
+                            <div class="small text-muted"><?php echo htmlspecialchars($ng['subject_name']); ?></div>
                         </div>
                         <div class="badge bg-primary fs-6 px-3"><?php echo number_format($ng['grade'], 2); ?></div>
                     </div>
@@ -203,75 +205,87 @@ $hasBacklog = hasAcademicBacklog($studentId);
 $honors = getLatinHonors($gpa, $hasBacklog);
 ?>
 
-<div class="responsive-grid mb-5">
-    <!-- GWA Card -->
+<!-- Dashboard Stats: Desktop View -->
+<div class="responsive-grid mb-4 d-none d-sm-grid">
     <div class="card premium-card p-4 border-0 shadow-sm position-relative">
         <?php if ($honors): ?>
             <div class="position-absolute top-0 end-0 p-3">
-                <span class="badge bg-warning text-dark shadow-sm px-3 py-2 rounded-pill fw-bold">
+                <span class="badge bg-warning text-dark shadow-sm px-3 py-2 rounded-pill fw-bold" style="font-size: 0.7rem;">
                     <i class="fas fa-medal me-1"></i> <?php echo $honors; ?>
                 </span>
             </div>
-        <?php elseif ($hasBacklog && $gpa <= 2.00): ?>
-            <div class="position-absolute top-0 end-0 p-3" title="Ineligible for honors due to academic backlogs (INC/Fail/Drop)">
-                <span class="badge bg-danger-subtle text-danger shadow-sm px-3 py-2 rounded-pill fw-bold">
-                    <i class="fas fa-exclamation-circle me-1"></i> Disqualified
-                </span>
-            </div>
         <?php endif; ?>
-        
         <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary mb-3">
             <i class="fas fa-chart-line"></i>
         </div>
-        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">General Weighted Average</div>
+        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">GWA</div>
         <h2 class="mb-0 fw-bold display-6 text-primary"><?php echo $gpa > 0 ? number_format($gpa, 2) : '0.00'; ?></h2>
     </div>
     
-    <!-- Units Card -->
     <div class="card premium-card p-4 border-0 shadow-sm">
         <div class="stat-card-icon-v2 bg-success bg-opacity-10 text-success mb-3">
             <i class="fas fa-book-open"></i>
         </div>
-        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">Total Units Earned</div>
+        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">Units Earned</div>
         <h2 class="mb-0 fw-bold display-6 text-success"><?php echo $totalUnits; ?></h2>
     </div>
     
-    <!-- Enrollments Card -->
     <div class="card premium-card p-4 border-0 shadow-sm">
         <div class="stat-card-icon-v2 bg-info bg-opacity-10 text-info mb-3">
             <i class="fas fa-graduation-cap"></i>
         </div>
-        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">Active Enrollments</div>
+        <div class="text-muted small fw-bold text-uppercase opacity-75 mb-1">Enrollments</div>
         <h2 class="mb-0 fw-bold display-6 text-info"><?php echo $enrollmentCount; ?></h2>
     </div>
 
-    <!-- Quick Link Card -->
     <div class="card premium-card p-4 border-0 shadow-sm bg-accent-indigo text-white" style="background: var(--sidebar-gradient);">
         <div class="d-flex flex-column h-100 justify-content-between">
             <div>
-                <h5 class="fw-bold mb-1">Academic Records</h5>
-                <p class="small opacity-75 mb-3">Instant access to your official documents.</p>
+                <h6 class="fw-bold mb-1 text-white">Academic Records</h6>
+                <p class="x-small opacity-75 mb-2">Instant COR & Transcript Access.</p>
             </div>
             <div class="d-flex gap-2">
-                <a href="cor.php" class="btn btn-light btn-sm rounded-pill px-3 fw-bold">View COR</a>
-                <a href="my_grades.php" class="btn btn-primary btn-sm rounded-pill px-3 fw-bold border-white">Full Transcript</a>
+                <a href="cor.php" class="btn btn-light btn-sm rounded-pill px-3 fw-bold flex-grow-1">COR</a>
+                <a href="my_grades.php" class="btn btn-primary btn-sm rounded-pill px-3 fw-bold border-white flex-grow-1">Grades</a>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Dashboard Stats: Mobile View (Prototype Style) -->
+<div class="stat-grid-mobile d-grid d-sm-none mb-4">
+    <div class="card stat-card-mobile p-3">
+        <div class="stat-value-mobile"><?php echo $gpa > 0 ? number_format($gpa, 2) : '0.00'; ?></div>
+        <div class="stat-label-mobile">GWA</div>
+    </div>
+    <div class="card stat-card-mobile p-3">
+        <div class="stat-value-mobile"><?php echo $totalUnits; ?></div>
+        <div class="stat-label-mobile">Units</div>
+    </div>
+    <div class="card stat-card-mobile p-3">
+        <div class="stat-value-mobile"><?php echo $enrollmentCount; ?></div>
+        <div class="stat-label-mobile">Enrolled</div>
+    </div>
+    <div class="card stat-card-mobile p-3 d-flex align-items-center justify-content-center">
+        <a href="my_grades.php" class="text-primary fw-bold text-decoration-none small">
+            <i class="fas fa-arrow-right me-1"></i> Records
+        </a>
     </div>
 </div>
 
 <div class="row mb-5">
     <div class="col-md-12">
         <div class="card premium-card border-0 shadow-sm">
-            <div class="card-header bg-transparent border-0 p-4 d-flex align-items-center">
+            <div class="card-header bg-transparent border-0 p-4 d-flex align-items-center pb-0">
                 <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary me-3" style="width: 45px; height: 45px; font-size: 1.1rem;">
                     <i class="fas fa-calendar-alt"></i>
                 </div>
                 <h5 class="mb-0 fw-bold text-dark">Active Class Schedule</h5>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-mobile-card">
+                <!-- Desktop View -->
+                <div class="table-responsive d-none d-sm-block">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light text-muted small text-uppercase">
                             <tr>
                                 <th class="ps-4">Academic Subject</th>
@@ -283,28 +297,30 @@ $honors = getLatinHonors($gpa, $hasBacklog);
                         </thead>
                         <tbody>
                             <?php if ($mySchedules->num_rows > 0): ?>
-                                <?php while ($sched = $mySchedules->fetch_assoc()): ?>
+                                <?php 
+                                $mySchedules->data_seek(0);
+                                while ($sched = $mySchedules->fetch_assoc()): ?>
                                 <tr>
-                                    <td class="ps-4" data-label="Academic Subject">
-                                        <div class="fw-bold text-primary"><?php echo htmlspecialchars($sched['course_code'] ?? ''); ?></div>
-                                        <div class="text-muted small"><?php echo htmlspecialchars($sched['course_name'] ?? ''); ?></div>
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-primary"><?php echo htmlspecialchars($sched['subject_id'] ?? ''); ?></div>
+                                        <div class="text-muted small"><?php echo htmlspecialchars($sched['subject_name'] ?? ''); ?></div>
                                     </td>
-                                    <td data-label="Faculty Member">
+                                    <td>
                                         <div class="small fw-semibold"><?php echo htmlspecialchars($sched['instructor_name'] ?? ''); ?></div>
                                     </td>
-                                    <td data-label="Schedule Info">
+                                    <td>
                                         <span class="badge bg-light text-primary border px-3 rounded-pill fw-semibold">
                                             <i class="fas fa-clock me-1 opacity-75"></i>
                                             <?php echo htmlspecialchars($sched['schedule'] ?? 'TBA'); ?>
                                         </span>
                                     </td>
-                                    <td data-label="Venue">
+                                    <td>
                                         <div class="small fw-bold text-dark">
                                             <i class="fas fa-door-open me-1 text-accent-indigo"></i>
                                             <?php echo htmlspecialchars($sched['room'] ?? 'TBA'); ?>
                                         </div>
                                     </td>
-                                    <td class="pe-4" data-label="Section">
+                                    <td class="pe-4">
                                         <span class="badge gradient-navy text-white px-3"><?php echo htmlspecialchars($sched['section_name'] ?? ''); ?></span>
                                     </td>
                                 </tr>
@@ -312,15 +328,36 @@ $honors = getLatinHonors($gpa, $hasBacklog);
                             <?php else: ?>
                                 <tr>
                                     <td colspan="5" class="text-center py-5">
-                                        <div class="stat-card-icon-v2 bg-light text-muted mx-auto mb-3">
-                                            <i class="fas fa-calendar-times"></i>
-                                        </div>
-                                        <p class="text-muted mb-0">No active enrollments for this semester.</p>
+                                        <p class="text-muted mb-0">No active enrollments found.</p>
                                     </td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Mobile View (Prototype Cards) -->
+                <div class="d-block d-sm-none p-3">
+                    <?php if ($mySchedules->num_rows > 0): ?>
+                        <?php 
+                        $mySchedules->data_seek(0);
+                        while ($sched = $mySchedules->fetch_assoc()): ?>
+                        <div class="card p-3 mb-3 border shadow-none">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="fw-bold text-primary"><?php echo htmlspecialchars($sched['subject_id']); ?></div>
+                                <span class="badge bg-primary bg-opacity-10 text-primary"><?php echo htmlspecialchars($sched['section_name']); ?></span>
+                            </div>
+                            <div class="fw-bold mb-2"><?php echo htmlspecialchars($sched['subject_name']); ?></div>
+                            <div class="small text-muted mb-3"><i class="fas fa-user-tie me-1"></i><?php echo htmlspecialchars($sched['instructor_name']); ?></div>
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                                <div class="small fw-bold"><i class="fas fa-clock me-1 text-primary"></i><?php echo htmlspecialchars($sched['schedule']); ?></div>
+                                <div class="small"><i class="fas fa-map-marker-alt me-1 text-danger"></i><?php echo htmlspecialchars($sched['room']); ?></div>
+                            </div>
+                        </div>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <div class="text-center py-4 text-muted small">No active classes.</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -330,95 +367,102 @@ $honors = getLatinHonors($gpa, $hasBacklog);
 <div class="row">
     <div class="col-md-12">
         <div class="card premium-card border-0 shadow-sm">
-            <div class="card-header bg-transparent border-0 p-4 d-flex justify-content-between align-items-center">
+            <div class="card-header bg-transparent border-0 p-4 d-flex justify-content-between align-items-center pb-0">
                 <div class="d-flex align-items-center">
                     <div class="stat-card-icon-v2 bg-success bg-opacity-10 text-success me-3" style="width: 45px; height: 45px; font-size: 1.1rem;">
                         <i class="fas fa-chart-bar"></i>
                     </div>
-                    <h5 class="mb-0 fw-bold text-dark">Recent Academic Performance</h5>
+                    <h5 class="mb-0 fw-bold text-dark">Recent Activity</h5>
                 </div>
-                <a href="my_grades.php" class="btn btn-primary rounded-pill px-4 shadow-sm">
-                    View Complete Records
+                <a href="my_grades.php" class="btn btn-primary rounded-pill px-4 shadow-sm btn-sm d-none d-sm-inline-block">
+                    Full Records
                 </a>
-            </div>
+            </div>  
             <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 table-mobile-card">
+                <!-- Desktop View -->
+                <div class="table-responsive d-none d-sm-block">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="bg-light text-muted small text-uppercase">
                             <tr>
                                 <th class="ps-4">Cycle</th>
-                                <th>Subject Code</th>
-                                <th>Description</th>
-                                <th class="text-center">Mid/Final</th>
-                                <th class="text-center">Final Grade</th>
-                                <th>Standing</th>
-                                <th class="pe-4">Record Status</th>
+                                <th>Subject</th>
+                                <th class="text-center">Grade</th>
+                                <th>Status</th>
+                                <th class="pe-4">Detail</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if ($recentGrades->num_rows > 0): ?>
-                                <?php while ($grade = $recentGrades->fetch_assoc()): ?>
+                                <?php 
+                                $recentGrades->data_seek(0);
+                                while ($grade = $recentGrades->fetch_assoc()): ?>
                                 <tr>
-                                    <td class="ps-4" data-label="Cycle">
-                                        <div class="small fw-bold"><?php echo htmlspecialchars($grade['school_year'] ?? ''); ?></div>
-                                        <div class="text-muted" style="font-size: 0.65rem;"><?php echo htmlspecialchars($grade['semester'] ?? ''); ?></div>
+                                    <td class="ps-4">
+                                        <div class="small fw-bold"><?php echo htmlspecialchars($grade['school_year']); ?></div>
+                                        <div class="text-muted x-small"><?php echo htmlspecialchars($grade['semester']); ?></div>
                                     </td>
-                                    <td data-label="Subject Code">
-                                        <div class="fw-bold text-primary small"><?php echo htmlspecialchars($grade['course_code'] ?? ''); ?></div>
+                                    <td>
+                                        <div class="fw-bold text-primary small"><?php echo htmlspecialchars($grade['subject_id']); ?></div>
+                                        <div class="text-muted x-small text-truncate" style="max-width: 150px;"><?php echo htmlspecialchars($grade['subject_name']); ?></div>
                                     </td>
-                                    <td data-label="Description">
-                                        <div class="text-muted small text-truncate" style="max-width: 200px;"><?php echo htmlspecialchars($grade['course_name'] ?? ''); ?></div>
+                                    <!-- Removed Mid/Final -->
+                                    <td class="text-center">
+                                        <span class="badge bg-primary px-3 rounded-pill"><?php echo $grade['grade'] ? number_format($grade['grade'], 2) : '-'; ?></span>
                                     </td>
-                                    <td class="text-center" data-label="Mid/Final">
-                                        <span class="text-muted small">M:</span> <?php echo $grade['midterm'] ?? '-'; ?>
-                                        <span class="text-muted small ms-2">F:</span> <?php echo $grade['final'] ?? '-'; ?>
-                                    </td>
-                                    <td class="text-center" data-label="Final Grade">
-                                        <?php if ($grade['grade']): ?>
-                                            <span class="badge bg-primary px-3 rounded-pill fs-6"><?php echo number_format($grade['grade'], 2); ?></span>
-                                        <?php else: ?>
-                                            <span class="text-muted">—</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td data-label="Standing">
+                                    <td>
                                         <?php
                                             $remarkClass = 'secondary';
-                                            $icon = 'fa-clock';
                                             switch ($grade['remarks']) {
-                                                case 'Passed': $remarkClass = 'success'; $icon = 'fa-check-circle'; break;
-                                                case 'Failed': $remarkClass = 'danger'; $icon = 'fa-times-circle'; break;
-                                                case 'INC': $remarkClass = 'warning'; $icon = 'fa-exclamation-triangle'; break;
+                                                case 'Passed': $remarkClass = 'success'; break;
+                                                case 'Failed': $remarkClass = 'danger'; break;
+                                                case 'INC': $remarkClass = 'warning'; break;
                                             }
                                         ?>
-                                        <span class="badge bg-<?php echo $remarkClass; ?> bg-opacity-10 text-<?php echo $remarkClass; ?> px-3 border border-<?php echo $remarkClass; ?> border-opacity-25">
-                                            <i class="fas <?php echo $icon; ?> me-1 small"></i> <?php echo htmlspecialchars($grade['remarks'] ?? 'Pending'); ?>
+                                        <span class="badge bg-<?php echo $remarkClass; ?> bg-opacity-10 text-<?php echo $remarkClass; ?> px-2 py-1 border border-<?php echo $remarkClass; ?> border-opacity-25 rounded-pill small">
+                                            <?php echo htmlspecialchars($grade['remarks'] ?? 'Pending'); ?>
                                         </span>
                                     </td>
-                                    <td class="pe-4" data-label="Record Status">
-                                        <?php
-                                            $statusClass = 'secondary';
-                                            $statusText = 'Unknown';
-                                            switch ($grade['status']) {
-                                                case 'approved': $statusClass = 'success'; $statusText = 'Official'; break;
-                                                case 'submitted': $statusClass = 'info'; $statusText = 'In Review'; break;
-                                                case 'pending': $statusClass = 'warning'; $statusText = 'Faculty Pending'; break;
-                                            }
-                                        ?>
-                                        <span class="badge bg-<?php echo $statusClass; ?> rounded-pill" style="font-size: 0.65rem;"><?php echo $statusText; ?></span>
+                                    <td class="pe-4">
+                                        <a href="my_grades.php" class="btn btn-premium-view"><i class="fas fa-eye"></i></a>
                                     </td>
                                 </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" class="text-center py-5 text-muted small">Academic registry is currently empty.</td>
+                                    <td colspan="6" class="text-center py-4 text-muted small">No recent records.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Mobile View (Prototype Cards) -->
+                <div class="d-block d-sm-none p-3">
+                    <?php if ($recentGrades->num_rows > 0): ?>
+                        <?php 
+                        $recentGrades->data_seek(0);
+                        while ($grade = $recentGrades->fetch_assoc()): ?>
+                        <div class="card p-3 mb-3 border shadow-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div class="fw-bold text-primary small text-uppercase"><?php echo htmlspecialchars($grade['subject_id']); ?></div>
+                                <div class="badge bg-primary fs-6"><?php echo $grade['grade'] ? number_format($grade['grade'], 2) : '--'; ?></div>
+                            </div>
+                            <div class="fw-bold mb-2 small"><?php echo htmlspecialchars($grade['subject_name']); ?></div>
+                            <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                                <span class="small fw-bold text-uppercase" style="color: var(--bs-<?php echo ($grade['remarks'] == 'Passed' ? 'success' : ($grade['remarks'] == 'Failed' ? 'danger' : 'warning')); ?>);">
+                                    <?php echo htmlspecialchars($grade['remarks'] ?? 'Pending'); ?>
+                                </span>
+                                <div class="x-small text-muted"><?php echo htmlspecialchars($grade['school_year']); ?></div>
+                            </div>
+                        </div>
+                        <?php endwhile; ?>
+                        <a href="my_grades.php" class="btn btn-mobile-full btn-outline-primary mt-2">View All Records</a>
+                    <?php else: ?>
+                        <div class="text-center py-4 text-muted small">No recent activity.</div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
 <?php require_once '../includes/footer.php'; ?>

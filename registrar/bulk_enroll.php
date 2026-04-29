@@ -16,13 +16,14 @@ $conn = getDBConnection();
 // Load available sections
 $sectionsStmt = $conn->query("
     SELECT cs.section_id, cs.section_name, cs.semester, cs.school_year,
-           c.course_code, c.course_name, c.units,
+           subj.subject_id, subj.subject_name, subj.units,
            (SELECT COUNT(*) FROM enrollments WHERE section_id = cs.section_id AND status != 'dropped') AS enrolled_count,
            cs.max_students
     FROM class_sections cs
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     WHERE cs.status = 'active'
-    ORDER BY cs.school_year DESC, cs.semester, c.course_code
+    ORDER BY cs.school_year DESC, cs.semester, subj.subject_id
 ");
 $sections = $sectionsStmt->fetch_all(MYSQLI_ASSOC);
 
@@ -31,8 +32,15 @@ $skipCount    = 0;
 $errors       = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $errors[] = 'Invalid security token. Please refresh and try again.';
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => $errors[0]]);
+            exit;
+        }
     } else {
         $sectionId   = (int)($_POST['section_id'] ?? 0);
         $studentIds  = $_POST['student_ids'] ?? [];
@@ -40,6 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!$sectionId || empty($studentIds)) {
             $errors[] = 'Please select a section and at least one student.';
+            if ($isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $errors[0]]);
+                exit;
+            }
         } else {
             // Verify section exists and is active
             $secCheck = $conn->prepare("SELECT section_id, max_students FROM class_sections WHERE section_id = ? AND status = 'active'");
@@ -50,11 +63,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$secData) {
                 $errors[] = 'Selected section is not available.';
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => $errors[0]]);
+                    exit;
+                }
             } else {
-                $insertStmt = $conn->prepare("
-                    INSERT IGNORE INTO enrollments (student_id, section_id, enrollment_date, status)
-                    VALUES (?, ?, ?, 'enrolled')
-                ");
+                $insertStmt = $conn->prepare(
+                    "INSERT IGNORE INTO enrollments (student_id, section_id, enrollment_date, status)
+                    VALUES (?, ?, ?, 'enrolled')"
+                );
 
                 foreach ($studentIds as $sid) {
                     $sid = (int)$sid;
@@ -80,10 +98,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $insertStmt->close();
 
+                $msg = '';
                 if ($successCount > 0) {
-                    redirectWithMessage('bulk_enroll.php',
-                        "{$successCount} student(s) enrolled successfully." . ($skipCount ? " {$skipCount} already enrolled (skipped)." : ''),
-                        'success');
+                    $msg = "{$successCount} student(s) enrolled successfully." . ($skipCount ? " {$skipCount} already enrolled (skipped)." : '');
+                } elseif ($skipCount > 0) {
+                    $msg = "No new enrollments. {$skipCount} student(s) were already enrolled.";
+                } else {
+                    $msg = 'No students were enrolled.';
+                }
+
+                if ($isAjax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => ($successCount > 0), 'message' => $msg, 'created' => $successCount, 'skipped' => $skipCount]);
+                    exit;
+                } else {
+                    if ($successCount > 0) {
+                        redirectWithMessage('bulk_enroll.php', $msg, 'success');
+                    } else {
+                        $errors[] = $msg;
+                    }
                 }
             }
         }
@@ -131,54 +164,51 @@ require_once __DIR__ . '/../includes/header.php';
             <div class="row g-4">
                 <!-- Left Column: Section Selection -->
                 <div class="col-lg-5">
-                    <div class="p-3 bg-light rounded-4 border h-100">
-                        <label for="section_id" class="form-label fw-700 text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:0.05em;color:#1e293b;">
+                    <div class="p-4 bg-light rounded-4 border h-100">
+                        <label for="section_id" class="form-label fw-bold small text-uppercase mb-3" style="letter-spacing:0.05em;color:#1e293b;">
                             <i class="fas fa-chalkboard me-1 text-primary"></i> Step 1 — Select Section
                         </label>
-                        <select class="form-select border-0 shadow-sm mb-3" id="section_id" name="section_id" required onchange="loadSectionInfo(this)" style="height: 50px; border-radius: 12px;">
+                        <select class="form-select border-0 shadow-sm mb-4 p-3 rounded-4" id="section_id" name="section_id" required onchange="loadSectionInfo(this)">
                             <option value="">— Choose a class section —</option>
                             <?php foreach ($sections as $sec): ?>
                                 <option value="<?php echo $sec['section_id']; ?>"
                                         data-enrolled="<?php echo $sec['enrolled_count']; ?>"
                                         data-max="<?php echo $sec['max_students']; ?>"
                                         <?php echo (isset($_POST['section_id']) && $_POST['section_id'] == $sec['section_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars("{$sec['course_code']} — {$sec['section_name']} ({$sec['semester']} {$sec['school_year']}) [{$sec['enrolled_count']}/{$sec['max_students']}]"); ?>
+                                    <?php echo htmlspecialchars("{$sec['subject_id']} — {$sec['section_name']} ({$sec['semester']} {$sec['school_year']}) [{$sec['enrolled_count']}/{$sec['max_students']}]"); ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
                         
-                        <div id="sectionInfo" class="alert alert-info border-0 shadow-sm d-none mb-0" style="border-radius: 12px;">
+                        <div id="sectionInfo" class="alert alert-info border-0 shadow-sm d-none mb-0 rounded-4">
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-info-circle me-2 fa-lg"></i>
                                 <span id="sectionInfoText" class="small"></span>
                             </div>
                         </div>
 
-                        <div class="mt-4 d-none d-lg-block">
-                            <div class="text-center p-4">
-                                <i class="fas fa-user-plus fa-4x text-primary opacity-10 mb-3"></i>
-                                <p class="text-muted small">Select a section to begin enrolling students. Make sure to check available slots.</p>
-                            </div>
+                        <div class="mt-5 d-none d-lg-block text-center p-4">
+                            <i class="fas fa-user-plus fa-5x text-primary opacity-10 mb-3"></i>
+                            <p class="text-muted small">Select a target section first, then choose the students you wish to enroll collectively. The system will skip any duplicates automatically.</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right Column: Student Selection -->
-                <div class="col-lg-7">
-                    <div class="p-3 bg-white rounded-4 border h-100">
-                        <label class="form-label fw-700 text-uppercase mb-3" style="font-size:0.75rem;letter-spacing:0.05em;color:#1e293b;">
+                <!-- Right Column: Student Sele                <div class="col-lg-7">
+                    <div class="p-4 bg-white rounded-4 border h-100 shadow-sm">
+                        <label class="form-label fw-bold small text-uppercase mb-3" style="letter-spacing:0.05em;color:#1e293b;">
                             <i class="fas fa-user-check me-1 text-primary"></i> Step 2 — Select Students
                         </label>
-
-                        <!-- Search filter -->
-                        <div class="input-group mb-3 shadow-sm" style="border-radius: 12px; overflow: hidden;">
-                            <span class="input-group-text border-0 bg-white pe-0"><i class="fas fa-search text-muted"></i></span>
-                            <input type="text" class="form-control border-0 ps-2" id="studentSearch" placeholder="Filter students by name, No., or program..."
-                                   style="height: 45px;" oninput="filterStudents(this.value)">
+                        
+                        <div class="premium-input-group mb-4">
+                            <div class="input-wrapper">
+                                <input type="text" class="form-control" id="studentSearch" placeholder="Search by name, ID, or program..." oninput="filterStudents(this.value)">
+                                <i class="fas fa-search"></i>
+                            </div>
                         </div>
 
                         <div class="d-flex align-items-center justify-content-between mb-3 px-1">
-                            <div class="btn-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                            <div class="btn-group rounded-pill overflow-hidden shadow-sm scale-hover">
                                 <button type="button" class="btn btn-sm btn-light border-end" onclick="selectAll(true)">
                                     <i class="fas fa-check-square me-1 text-primary"></i>Select All
                                 </button>
@@ -186,10 +216,10 @@ require_once __DIR__ . '/../includes/header.php';
                                     <i class="fas fa-minus-square me-1 text-danger"></i>Clear
                                 </button>
                             </div>
-                            <span class="badge bg-primary rounded-pill px-3 py-2" id="selectedCount">0 selected</span>
+                            <span class="badge gradient-navy rounded-pill px-3 py-2 shadow-sm" id="selectedCount">0 selected</span>
                         </div>
 
-                        <div style="max-height:450px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:12px; padding:0.5rem; background: #fdfdfd;" id="studentList" class="custom-scrollbar">
+                        <div style="max-height:450px; overflow-y:auto; border:1px solid #f1f5f9; border-radius:12px; padding:0.5rem; background: #fdfdfd;" id="studentList" class="custom-scrollbar shadow-inner">-scrollbar">
                             <?php foreach ($students as $stu):
                                 $fullName = htmlspecialchars("{$stu['last_name']}, {$stu['first_name']}");
                                 $prog     = htmlspecialchars($stu['program_name'] ?? '');
@@ -216,28 +246,56 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
             </div>
 
-            <div class="mt-4 pt-4 border-top text-center text-lg-start">
-                <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow-lg transform-hover" id="submitBtn">
+            <div class="mt-5 pt-4 border-top text-center text-lg-start">
+                <button type="submit" class="btn btn-primary px-5 py-3 rounded-pill fw-bold shadow-lg scale-hover" id="submitBtn">
                     <i class="fas fa-user-plus me-2 text-warning fa-lg"></i> ENROLL SELECTED STUDENTS
                 </button>
-                <button type="reset" class="btn btn-link text-muted ms-lg-3 mt-3 mt-lg-0 text-decoration-none small" onclick="setTimeout(updateCount, 50)">
-                    <i class="fas fa-undo me-1"></i> Reset Form
+                <button type="reset" class="btn btn-link text-muted ms-lg-3 mt-3 mt-lg-0 text-decoration-none small fw-bold" onclick="setTimeout(updateCount, 50)">
+                    <i class="fas fa-undo me-1"></i> Reset Selection
                 </button>
             </div>
         </form>
     </div>
 </div>
 
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="bulkEnrollConfirmModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content rounded-4 shadow-lg border-0">
+                <div class="modal-header gradient-navy text-white rounded-top-4">
+                    <h5 class="modal-title">Confirm Bulk Enrollment</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p id="confirmText" class="mb-3"></p>
+                    <div id="confirmDetails" class="small text-muted"></div>
+                </div>
+                <div class="modal-footer border-top-0 p-3 rounded-bottom-4">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="confirmEnrollBtn" class="btn btn-primary">Confirm and Enroll</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- In-page overlay for submission feedback -->
+    <div id="bulkEnrollOverlay" style="display:none; position:fixed; inset:0; z-index:2000; backdrop-filter: blur(4px); background: rgba(0,0,0,0.25); align-items:center; justify-content:center;">
+            <div style="background: white; padding:2rem; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2); text-align:center; min-width:320px;">
+                    <div class="spinner-border text-primary mb-3" role="status"><span class="visually-hidden">Loading...</span></div>
+                    <div id="bulkEnrollOverlayText" style="font-weight:600;">Processing enrollment...</div>
+            </div>
+    </div>
+
 <style>
-.fw-700 { font-weight: 700; }
-.fw-600 { font-weight: 600; }
-.transform-hover { transition: transform 0.2s; }
-.transform-hover:hover { box-shadow: 0 10px 20px rgba(0,56,168,0.2); }
+.scale-hover { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+.scale-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0,56,168,0.15) !important; }
 
 .student-item:has(.student-cb:checked) {
-    background: #eff6ff !important;
-    border-color: #3b82f6 !important;
+    background: #f0f7ff !important;
+    border-color: #0038A8 !important;
+    transform: translateX(5px);
 }
+.shadow-inner { box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05); }
 </style>
 
 <script>
@@ -272,6 +330,76 @@ function updateCount() {
     const n = document.querySelectorAll('.student-cb:checked').length;
     document.getElementById('selectedCount').textContent = n + ' selected';
 }
+
+// AJAX submit with validation and overlay
+// Show confirmation modal first, then perform AJAX enrollment on confirm
+document.getElementById('bulkEnrollForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    const form = this;
+    const sectionEl = document.getElementById('section_id');
+    const sectionId = parseInt(sectionEl.value || 0, 10);
+    const selected = Array.from(document.querySelectorAll('.student-cb:checked')).map(i => i.value);
+    if (!sectionId) { alert('Please select a section.'); return; }
+    if (selected.length === 0) { alert('Please select at least one student.'); return; }
+
+    // build confirmation text
+    const opt = sectionEl.selectedOptions[0];
+    let seatsInfo = '';
+    if (opt && opt.dataset) {
+        const max = parseInt(opt.dataset.max || '0', 10);
+        const enrolled = parseInt(opt.dataset.enrolled || '0', 10);
+        if (max > 0) seatsInfo = `${enrolled}/${max} occupied`;
+    }
+
+    const confirmText = document.getElementById('confirmText');
+    const confirmDetails = document.getElementById('confirmDetails');
+    confirmText.textContent = `You are about to enroll ${selected.length} student(s) into the selected section.`;
+    confirmDetails.textContent = seatsInfo ? `Section occupancy: ${seatsInfo}` : '';
+
+    // store form reference on confirm button for later
+    const confirmBtn = document.getElementById('confirmEnrollBtn');
+    confirmBtn._bulkEnrollForm = form;
+    confirmBtn._bulkEnrollSelected = selected;
+
+    // show bootstrap modal
+    const bsModal = new bootstrap.Modal(document.getElementById('bulkEnrollConfirmModal'), { backdrop: 'static', keyboard: false });
+    bsModal.show();
+});
+
+// perform the actual enrollment when user confirms
+document.getElementById('confirmEnrollBtn').addEventListener('click', function(){
+    const btn = this;
+    const form = btn._bulkEnrollForm;
+    if (!form) return;
+    btn.disabled = true;
+
+    // show overlay
+    const overlay = document.getElementById('bulkEnrollOverlay');
+    const overlayText = document.getElementById('bulkEnrollOverlayText');
+    overlayText.textContent = `Enrolling...`;
+    overlay.style.display = 'flex';
+
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+
+    const formData = new FormData(form);
+    fetch(window.location.href, { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(r => r.json())
+        .then(data => {
+            overlayText.textContent = data.message || (data.success ? 'Enrollment completed.' : 'An error occurred.');
+            setTimeout(()=>{
+                overlay.style.display = 'none';
+                if (data.success) location.reload(); else { submitBtn.disabled = false; btn.disabled = false; }
+            }, 1000);
+        })
+        .catch(err => {
+            console.error(err);
+            overlayText.textContent = 'Connection error. Please try again.';
+            setTimeout(()=>{ overlay.style.display='none'; submitBtn.disabled=false; btn.disabled=false; }, 1200);
+        });
+    // hide the bootstrap confirmation modal if present
+    try { const m = bootstrap.Modal.getInstance(document.getElementById('bulkEnrollConfirmModal')); if (m) m.hide(); } catch(e){}
+});
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

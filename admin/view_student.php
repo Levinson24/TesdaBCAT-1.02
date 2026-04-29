@@ -16,7 +16,7 @@ if (!$studentId) {
 
 // Fetch student details - Full access for admin
 $stmt = $conn->prepare("
-    SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
+    SELECT s.*, u.username, u.profile_image, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
     FROM students s
     JOIN users u ON s.user_id = u.user_id
     LEFT JOIN departments d ON s.dept_id = d.dept_id
@@ -39,11 +39,12 @@ $gwa = calculateGWA($studentId);
 // Fetch all enrolled subjects
 $enrollmentsStmt = $conn->prepare("
     SELECT e.enrollment_id, cs.section_name, cs.schedule, cs.room, cs.semester, cs.school_year,
-           c.course_code, c.course_name,
+           subj.subject_id as course_code, subj.subject_name as course_name,
            CONCAT(i.first_name, ' ', i.last_name) as instructor_name
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     WHERE e.student_id = ?
     ORDER BY cs.school_year DESC, cs.semester DESC
@@ -75,8 +76,12 @@ require_once '../includes/header.php';
         <div class="card premium-card border-0 mb-4 shadow-sm">
             <div class="card-body text-center p-4">
                 <div class="mb-3">
-                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
-                        <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center overflow-hidden" style="width: 100px; height: 100px;">
+                        <?php if (!empty($student['profile_image'])): ?>
+                            <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($student['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <h4 class="mb-1 fw-bold"><?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></h4>
@@ -151,13 +156,15 @@ endif; ?>
     <!-- Right Column: Enrollment & Academic Info -->
     <div class="col-lg-8">
         <div class="card premium-card border-0 mb-4 shadow-sm">
-            <div class="card-header bg-white py-4 border-0 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold text-primary"><i class="fas fa-book-open me-2"></i> Academic Enrollments</h5>
-                <div>
-                   <a href="../dept_head/manage_student_schedule.php?student_id=<?php echo $studentId; ?>" class="btn btn-dark btn-sm rounded-pill px-3 me-2">
+            <div class="card-header bg-transparent py-4 border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-primary" style="font-family: 'Outfit', sans-serif;">
+                    <i class="fas fa-book-open me-2 opacity-75"></i> Academic Enrollments
+                </h5>
+                <div class="d-flex gap-2">
+                   <a href="../dept_head/manage_student_schedule.php?student_id=<?php echo $studentId; ?>" class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-sm border-0">
                         <i class="fas fa-calendar-check me-1"></i> Manage Enrollment
                     </a>
-                   <a href="../registrar/curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn btn-outline-primary btn-sm rounded-pill px-3 me-2" target="_blank">
+                   <a href="../registrar/curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn btn-outline-primary btn-sm rounded-pill px-4 fw-bold" target="_blank" style="border-width: 2px;">
                         <i class="fas fa-print me-1"></i> Evaluation Report
                     </a>
                 </div>
@@ -165,11 +172,11 @@ endif; ?>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
-                        <thead class="bg-light">
+                        <thead style="background: rgba(0, 56, 168, 0.03);">
                             <tr>
-                                <th class="ps-4 border-0 small fw-bold text-uppercase">Course & Code</th>
-                                <th class="border-0 small fw-bold text-uppercase">Sect / Schedule</th>
-                                <th class="border-0 small fw-bold text-uppercase">Faculty Assignment</th>
+                                <th class="ps-4 border-0 small fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.7rem;">Course & Code</th>
+                                <th class="border-0 small fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.7rem;">Sect / Schedule</th>
+                                <th class="border-0 small fw-bold text-uppercase text-muted" style="letter-spacing: 0.05em; font-size: 0.7rem;">Faculty Assignment</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -195,10 +202,15 @@ endif; ?>
                             <?php
 else: ?>
                                 <tr>
-                                    <td colspan="3" class="text-center py-5 text-muted">
-                                        <img src="../BCAT logo 2024.png" class="opacity-10 mb-3" style="width: 80px; filter: grayscale(1);">
-                                        <div class="fw-bold">No Records Found</div>
-                                        <div class="small">This student hasn't been enrolled in any sections yet.</div>
+                                    <td colspan="3" class="text-center py-5">
+                                        <div class="mb-3 position-relative d-inline-block">
+                                            <img src="../BCAT logo 2024.png" class="opacity-25" style="width: 85px;">
+                                            <div class="position-absolute top-50 start-50 translate-middle">
+                                                <i class="fas fa-folder-open fa-2x text-primary opacity-50"></i>
+                                            </div>
+                                        </div>
+                                        <h6 class="fw-bold text-dark mb-1">No Academic Records Found</h6>
+                                        <p class="text-muted small mb-0">This student hasn't been enrolled in any sections for the current term yet.</p>
                                     </td>
                                 </tr>
                             <?php

@@ -25,7 +25,7 @@ $result = $conn->query("SELECT COUNT(*) as total FROM instructors WHERE status =
 $totalInstructors = $result->fetch_assoc()['total'];
 
 // Total courses
-$result = $conn->query("SELECT COUNT(*) as total FROM courses WHERE status = 'active'");
+$result = $conn->query("SELECT COUNT(*) as total FROM curriculum WHERE status = 'active'");
 $totalCourses = $result->fetch_assoc()['total'];
 
 // Total Colleges
@@ -57,7 +57,7 @@ $currentUser = getUserProfile(getCurrentUserId(), 'admin');
         <div class="card premium-card overflow-hidden shadow-lg border-0" style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
             <div class="card-body p-0">
                 <div class="row g-0">
-                    <div class="col-lg-3 gradient-navy d-flex flex-column align-items-center justify-content-center p-5 text-white position-relative overflow-hidden">
+                    <div class="col-12 col-lg-3 gradient-navy d-flex flex-column align-items-center justify-content-center p-4 p-lg-5 text-white position-relative overflow-hidden">
                         <!-- Decorative circle -->
                         <div style="position: absolute; top: -50px; right: -50px; width: 150px; height: 150px; background: rgba(255,255,255,0.05); border-radius: 50%;"></div>
                         <div class="user-avatar bg-white p-3 mb-3 shadow-lg" style="width: 130px; height: 130px; border-radius: 3rem; display: flex; align-items: center; justify-content: center;">
@@ -66,8 +66,8 @@ $currentUser = getUserProfile(getCurrentUserId(), 'admin');
                         <h5 class="fw-bold mb-0">TESDA-BCAT</h5>
                         <p class="small opacity-75 mb-0">Grade Management System</p>
                     </div>
-                    <div class="col-lg-9 p-5">
-                        <div class="d-flex justify-content-between align-items-start mb-4">
+                    <div class="col-12 col-lg-9 p-4 p-lg-5">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start mb-4 gap-3">
                             <div>
                                 <h1 class="display-5 fw-800 mb-2" style="letter-spacing: -0.03em; color: var(--primary-indigo);">Welcome, <?php echo htmlspecialchars($currentUser['username'] ?? 'Admin'); ?>!</h1>
                                 <p class="text-muted lead mb-0">You have full control over the system's academic and administrative operations.</p>
@@ -78,7 +78,7 @@ $currentUser = getUserProfile(getCurrentUserId(), 'admin');
                                 </span>
                             </div>
                         </div>
-                        <div class="row g-4">
+                        <div class="row g-3">
                             <div class="col-sm-4">
                                 <div class="d-flex align-items-center gap-3">
                                     <div class="bg-primary bg-opacity-10 p-2 rounded-3 text-primary">
@@ -307,6 +307,29 @@ $currentUser = getUserProfile(getCurrentUserId(), 'admin');
     <div class="col-lg-4">
         <div class="row g-4">
             <div class="col-12">
+                <div class="card premium-card border-0 shadow-sm" style="background: linear-gradient(135deg, #fff 0%, #f0f7ff 100%); border-left: 5px solid #0038A8 !important;">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="stat-card-icon-v2 bg-primary bg-opacity-10 text-primary">
+                                <i class="fas fa-users-viewfinder"></i>
+                            </div>
+                            <span class="badge bg-primary text-white rounded-pill pulse-badge" id="online-count-badge">0 ONLINE</span>
+                        </div>
+                        <h6 class="text-muted small fw-bold text-uppercase mb-1">Active Now</h6>
+                        <div id="online-users-list" class="mt-3">
+                            <div class="text-center py-3 text-muted small">
+                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                Tracking active users...
+                            </div>
+                        </div>
+                        <a href="users.php" class="btn btn-outline-primary w-100 py-2 rounded-3 fw-bold mt-3" style="font-size: 0.75rem;">
+                            <i class="fas fa-external-link-alt me-1"></i> Manage All Users
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
                 <div class="card premium-card border-0 shadow-sm" style="background: linear-gradient(135deg, #fff 0%, #fffbf2 100%); border-left: 5px solid #f39c12 !important;">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -424,6 +447,66 @@ function updateActivityFeed() {
 
 // Start polling every 10 seconds
 setInterval(updateActivityFeed, 10000);
+
+// Online Users Widget Logic
+function updateOnlineUsers() {
+    $.ajax({
+        url: 'ajax/get_user_status.php',
+        method: 'GET',
+        dataType: 'json',
+        success: function(data) {
+            const listContainer = document.getElementById('online-users-list');
+            const countBadge = document.getElementById('online-count-badge');
+            if (!listContainer || !countBadge) return;
+
+            let users = [];
+            for (let id in data) {
+                // Show users who are online OR were seen in the last 30 minutes
+                if (data[id].isOnline || data[id].lastLogin !== 'Never logged in') {
+                    users.push(data[id]);
+                }
+            }
+
+            // Sort: Online users first, then by most recent activity
+            users.sort((a, b) => {
+                if (a.isOnline && !b.isOnline) return -1;
+                if (!a.isOnline && b.isOnline) return 1;
+                return 0;
+            });
+
+            const onlineCount = users.filter(u => u.isOnline).length;
+            countBadge.innerText = `${onlineCount} ONLINE`;
+            
+            if (users.length === 0) {
+                listContainer.innerHTML = '<div class="text-muted small italic px-1 pt-1">No activity tracked</div>';
+                return;
+            }
+
+            let html = '<div class="d-flex flex-column gap-2">';
+            // Limit to top 6 users for the dashboard widget
+            users.slice(0, 6).forEach(user => {
+                const roleDisplay = user.role.charAt(0).toUpperCase() + user.role.slice(1).replace('_', ' ');
+                const statusClass = user.isOnline ? 'online' : 'offline';
+                const statusText = user.isOnline ? (user.sessionDuration || 'Active') : 'Away';
+                
+                html += `
+                    <div class="d-flex align-items-center gap-2 p-2 rounded-3 bg-white bg-opacity-75 shadow-xs border ${!user.isOnline ? 'opacity-75' : ''}">
+                        <div class="pulse-dot ${statusClass}" style="width: 8px; height: 8px;" title="${user.isOnline ? 'Online' : 'Offline'}"></div>
+                        <div class="flex-grow-1 overflow-hidden">
+                            <div class="fw-bold text-dark text-truncate" style="font-size: 0.75rem;">${user.username}</div>
+                            <div class="text-muted text-truncate" style="font-size: 0.65rem;">${roleDisplay} • ${statusText}</div>
+                        </div>
+                    </div>`;
+            });
+            html += '</div>';
+            listContainer.innerHTML = html;
+        }
+    });
+}
+
+// Update online users every 15 seconds
+setInterval(updateOnlineUsers, 15000);
+document.addEventListener('DOMContentLoaded', updateOnlineUsers);
 
 // Dashboard Charts Logic
 function initDashboardCharts() {

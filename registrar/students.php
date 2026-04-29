@@ -35,28 +35,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
     if ($_POST['action'] === 'create') {
-        $studentNo = sanitizeInput($_POST['student_no']);
+        $studentNo = sanitizeInput($_POST['student_no'] ?? '');
         if (empty($studentNo)) {
             $studentNo = generateNextID('student');
         }
-        $dob = sanitizeInput($_POST['date_of_birth']); // Expected YYYY-MM-DD
-        $formatted_dob = date('m/d/Y', strtotime($dob));
+        $dob = sanitizeInput($_POST['date_of_birth'] ?? ''); // Expected YYYY-MM-DD
+        $formatted_dob = !empty($dob) ? date('m/d/Y', strtotime($dob)) : '';
         $username = $studentNo;
-        $password = hashPassword($formatted_dob);
+        
+        // Use custom password if provided, otherwise default to birthdate
+        $rawPassword = !empty($_POST['password']) ? $_POST['password'] : $formatted_dob;
+        $password = hashPassword($rawPassword);
 
-        $firstName = sanitizeInput($_POST['first_name']);
-        $lastName = sanitizeInput($_POST['last_name']);
-        $middleName = sanitizeInput($_POST['middle_name']);
-        $gender = sanitizeInput($_POST['gender']);
-        $address = sanitizeInput($_POST['address']);
-        $municipality = sanitizeInput($_POST['municipality']);
-        $religion = sanitizeInput($_POST['religion']);
-        $contactNumber = sanitizeInput($_POST['contact_number']);
-        $email = sanitizeInput($_POST['email']);
-        $elemSchool = sanitizeInput($_POST['elem_school']);
-        $elemYear = sanitizeInput($_POST['elem_year']);
-        $secSchool = sanitizeInput($_POST['secondary_school']);
-        $secYear = sanitizeInput($_POST['secondary_year']);
+        // Handle Profile Image Upload
+        $profileImage = null;
+        if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+            $uploadRes = uploadFile($_FILES['profile_image'], '../uploads/profiles/');
+            if ($uploadRes[0]) {
+                $profileImage = 'uploads/profiles/' . $uploadRes[2];
+            }
+        }
+
+        $firstName = sanitizeInput($_POST['first_name'] ?? '');
+        $lastName = sanitizeInput($_POST['last_name'] ?? '');
+        $middleName = sanitizeInput($_POST['middle_name'] ?? '');
+        $gender = sanitizeInput($_POST['gender'] ?? '');
+        $address = sanitizeInput($_POST['address'] ?? '');
+        $municipality = sanitizeInput($_POST['municipality'] ?? '');
+        $province = sanitizeInput($_POST['province'] ?? '');
+        $religion = sanitizeInput($_POST['religion'] ?? '');
+        $contactNumber = sanitizeInput($_POST['contact_number'] ?? '');
+        $email = sanitizeInput($_POST['email'] ?? '');
+        $elemSchool = sanitizeInput($_POST['elem_school'] ?? '');
+        $elemYear = sanitizeInput($_POST['elem_year'] ?? '');
+        $secSchool = sanitizeInput($_POST['secondary_school'] ?? '');
+        $secYear = sanitizeInput($_POST['secondary_year'] ?? '');
         $programId = !empty($_POST['program_id']) ? intval($_POST['program_id']) : null;
         $deptId = intval($_POST['dept_id'] ?? 0);
 
@@ -69,38 +82,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $check->close();
 
-        $stmt = $conn->prepare("INSERT INTO users (username, password, role, status) VALUES (?, ?, 'student', 'active')");
-        $stmt->bind_param("ss", $username, $password);
+        $stmt = $conn->prepare("INSERT INTO users (username, password, role, profile_image, status) VALUES (?, ?, 'student', ?, 'active')");
+        $stmt->bind_param("sss", $username, $password, $profileImage);
         if ($stmt->execute()) {
             $userId = $stmt->insert_id;
-            $stmt2 = $conn->prepare("INSERT INTO students (user_id, student_no, first_name, last_name, middle_name, date_of_birth, gender, elem_school, elem_year, secondary_school, secondary_year, address, municipality, religion, contact_number, email, program_id, dept_id, year_level, enrollment_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURDATE())");
-            $stmt2->bind_param("isssssssssssssssii", $userId, $studentNo, $firstName, $lastName, $middleName, $dob, $gender, $elemSchool, $elemYear, $secSchool, $secYear, $address, $municipality, $religion, $contactNumber, $email, $programId, $deptId);
+            $stmt2 = $conn->prepare("INSERT INTO students (user_id, student_no, first_name, last_name, middle_name, date_of_birth, gender, elem_school, elem_year, secondary_school, secondary_year, address, municipality, province, religion, contact_number, email, program_id, dept_id, year_level, enrollment_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)");
+            $enrollmentDate = !empty($_POST['enrollment_date']) ? sanitizeInput($_POST['enrollment_date']) : date('Y-m-d');
+            $stmt2->bind_param("issssssssssssssssiis", $userId, $studentNo, $firstName, $lastName, $middleName, $dob, $gender, $elemSchool, $elemYear, $secSchool, $secYear, $address, $municipality, $province, $religion, $contactNumber, $email, $programId, $deptId, $enrollmentDate);
             $stmt2->execute();
             logAudit(getCurrentUserId(), 'CREATE', 'users', $userId, null, "Created student profile: $studentNo ($firstName $lastName)");
             redirectWithMessage('students.php', 'Student created successfully. Login: ID=' . $studentNo . ', Pwd=' . $formatted_dob, 'success');
         }
     }
     elseif ($_POST['action'] === 'update') {
-        $studentId = intval($_POST['student_id']);
-        $studentNo = sanitizeInput($_POST['student_no']);
-        $firstName = sanitizeInput($_POST['first_name']);
-        $lastName = sanitizeInput($_POST['last_name']);
-        $middleName = sanitizeInput($_POST['middle_name']);
-        $gender = sanitizeInput($_POST['gender']);
-        $address = sanitizeInput($_POST['address']);
-        $municipality = sanitizeInput($_POST['municipality']);
-        $religion = sanitizeInput($_POST['religion']);
-        $contactNumber = sanitizeInput($_POST['contact_number']);
-        $email = sanitizeInput($_POST['email']);
-        $elemSchool = sanitizeInput($_POST['elem_school']);
-        $elemYear = sanitizeInput($_POST['elem_year']);
-        $secSchool = sanitizeInput($_POST['secondary_school']);
-        $secYear = sanitizeInput($_POST['secondary_year']);
+        $studentId = intval($_POST['student_id'] ?? 0);
+        $studentNo = sanitizeInput($_POST['student_no'] ?? '');
+        $firstName = sanitizeInput($_POST['first_name'] ?? '');
+        $lastName = sanitizeInput($_POST['last_name'] ?? '');
+        $middleName = sanitizeInput($_POST['middle_name'] ?? '');
+        $gender = sanitizeInput($_POST['gender'] ?? '');
+        $address = sanitizeInput($_POST['address'] ?? '');
+        $municipality = sanitizeInput($_POST['municipality'] ?? '');
+        $province = sanitizeInput($_POST['province'] ?? '');
+        $religion = sanitizeInput($_POST['religion'] ?? '');
+        $contactNumber = sanitizeInput($_POST['contact_number'] ?? '');
+        $email = sanitizeInput($_POST['email'] ?? '');
+        $elemSchool = sanitizeInput($_POST['elem_school'] ?? '');
+        $elemYear = sanitizeInput($_POST['elem_year'] ?? '');
+        $secSchool = sanitizeInput($_POST['secondary_school'] ?? '');
+        $secYear = sanitizeInput($_POST['secondary_year'] ?? '');
         $programId = !empty($_POST['program_id']) ? intval($_POST['program_id']) : null;
         $deptId = intval($_POST['dept_id'] ?? 0);
-        $yearLevel = intval($_POST['year_level']);
-        $status = sanitizeInput($_POST['status']);
-        $dob = sanitizeInput($_POST['date_of_birth']);
+        $yearLevel = intval($_POST['year_level'] ?? 0);
+        $status = sanitizeInput($_POST['status'] ?? '');
+        $dob = sanitizeInput($_POST['date_of_birth'] ?? '');
+        $enrollmentDate = !empty($_POST['enrollment_date']) ? sanitizeInput($_POST['enrollment_date']) : null;
 
         // Fetch current status to detect change to 'dropped'
         $oldStatusStmt = $conn->prepare("SELECT status FROM students WHERE student_id = ?");
@@ -113,6 +129,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $academicHonor = !empty($_POST['academic_honor']) ? sanitizeInput($_POST['academic_honor']) : null;
         $evaluatorId = !empty($academicHonor) ? getCurrentUserId() : null;
 
+        // Handle Profile Image Update
+        if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+            $uploadRes = uploadFile($_FILES['profile_image'], '../uploads/profiles/');
+            if ($uploadRes[0]) {
+                $newProfileImage = 'uploads/profiles/' . $uploadRes[2];
+                $imgStmt = $conn->prepare("UPDATE users u JOIN students s ON u.user_id = s.user_id SET u.profile_image = ? WHERE s.student_id = ?");
+                $imgStmt->bind_param("si", $newProfileImage, $studentId);
+                $imgStmt->execute();
+            }
+        }
+
+        // Handle Password Update if provided
+        if (!empty($_POST['password'])) {
+            $newHashedPassword = hashPassword($_POST['password']);
+            $pwdStmt = $conn->prepare("UPDATE users u JOIN students s ON u.user_id = s.user_id SET u.password = ? WHERE s.student_id = ?");
+            $pwdStmt->bind_param("si", $newHashedPassword, $studentId);
+            $pwdStmt->execute();
+        }
+
+        // Handle Username Sync (student_no)
+        $userSync = $conn->prepare("UPDATE users u JOIN students s ON u.user_id = s.user_id SET u.username = ? WHERE s.student_id = ?");
+        $userSync->bind_param("si", $studentNo, $studentId);
+        $userSync->execute();
+
         // Backend Disqualification Validation
         $hasBacklog = hasAcademicBacklog($studentId);
         if ($hasBacklog) {
@@ -124,8 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
-        $stmt = $conn->prepare("UPDATE students SET student_no = ?, first_name = ?, last_name = ?, middle_name = ?, date_of_birth = ?, gender = ?, elem_school = ?, elem_year = ?, secondary_school = ?, secondary_year = ?, address = ?, municipality = ?, religion = ?, contact_number = ?, email = ?, program_id = ?, dept_id = ?, year_level = ?, status = ?, academic_honor = ?, honor_evaluated_by = ? WHERE student_id = ?");
-        $stmt->bind_param("sssssssssssssssiiissii", $studentNo, $firstName, $lastName, $middleName, $dob, $gender, $elemSchool, $elemYear, $secSchool, $secYear, $address, $municipality, $religion, $contactNumber, $email, $programId, $deptId, $yearLevel, $status, $academicHonor, $evaluatorId, $studentId);
+        $stmt = $conn->prepare("UPDATE students SET student_no = ?, first_name = ?, last_name = ?, middle_name = ?, date_of_birth = ?, gender = ?, elem_school = ?, elem_year = ?, secondary_school = ?, secondary_year = ?, address = ?, municipality = ?, province = ?, religion = ?, contact_number = ?, email = ?, program_id = ?, dept_id = ?, year_level = ?, status = ?, academic_honor = ?, honor_evaluated_by = ?, enrollment_date = COALESCE(?, enrollment_date) WHERE student_id = ?");
+        $stmt->bind_param("ssssssssssssssssiiissisi", $studentNo, $firstName, $lastName, $middleName, $dob, $gender, $elemSchool, $elemYear, $secSchool, $secYear, $address, $municipality, $province, $religion, $contactNumber, $email, $programId, $deptId, $yearLevel, $status, $academicHonor, $evaluatorId, $enrollmentDate, $studentId);
         if ($stmt->execute()) {
             // Lifecycle Cleanup: If status changed to 'dropped', clear current semester enrollments
             if ($status === 'dropped' && $oldStatus !== 'dropped') {
@@ -167,90 +207,283 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-$pageTitle = 'Manage Students';
+$pageTitle = 'Student Records Registry';
 require_once '../includes/header.php';
-
-// === CSS for Premium Look ===
 ?>
+<!-- Import Premium Typography -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-    .bg-dark-navy { background-color: #0f172a !important; }
-    .premium-card { border-radius: 1rem; }
-    .students-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.70rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
+    /* Premium Modal Styles */
+    :root {
+        --primary-blue: #0038A8;
+        --dark-blue: #002366;
+        --premium-gold: #FFD700;
+        --premium-shadow: 0 10px 30px rgba(0, 56, 168, 0.15);
     }
-    .students-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
+
+    .modal-xl {
+        max-width: 1100px;
     }
-    /* Premium Action Buttons */
-    .btn-premium-eval, .btn-premium-edit, .btn-premium-delete {
-        width: 32px; height: 32px;
-        display: inline-flex;
+
+    .modal-dialog-scrollable .modal-content {
+        max-height: 95vh;
+        overflow: hidden;
+    }
+    
+    .modal-dialog-scrollable form {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .modal-dialog-scrollable .modal-body {
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-content {
+        font-family: 'Outfit', sans-serif;
+    }
+
+    .modal-premium-header {
+        background: linear-gradient(135deg, #0038A8 0%, #002366 100%);
+        position: relative;
+        overflow: visible !important;
+        min-height: 100px;
+    }
+
+    .title-icon-wrapper {
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 50%;
-        transition: all 0.2s;
-        border: none;
+        font-size: 1.2rem;
+        box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    .form-section-divider {
+        display: flex;
+        align-items: center;
+        margin: 1.25rem 0 1rem;
+        color: var(--primary-blue);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 1px;
+    }
+
+    .form-section-divider::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(to right, rgba(0,56,168,0.2), transparent);
+        margin-left: 1rem;
+    }
+
+    .form-section-divider span {
+        background: rgba(0,56,168,0.05);
+        padding: 0.3rem 0.75rem;
+        border-radius: 50px;
+        font-size: 0.7rem;
+    }
+
+    /* Premium Input Groups */
+    .premium-input-group {
+        background: linear-gradient(145deg, #ffffff, #fcfdff);
+        padding: 0.5rem 0.85rem;
+        border-radius: 10px;
+        border: 1px solid rgba(0, 56, 168, 0.08);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 100%;
+        position: relative;
+    }
+
+    .premium-input-group:hover {
+        border-color: rgba(0, 56, 168, 0.2);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 56, 168, 0.05);
+    }
+
+    .premium-input-group:focus-within {
+        border-color: var(--primary-blue);
+        box-shadow: 0 8px 20px rgba(0, 56, 168, 0.1);
+        background: #fff;
+    }
+
+    .premium-input-group label {
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: var(--primary-blue) !important; /* Enforced Institution Blue */
+        text-transform: uppercase;
+        margin-bottom: 0.4rem;
+        letter-spacing: 0.05em;
+        position: relative;
+        z-index: 2;
+    }
+
+    .premium-input-group .input-wrapper {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+    }
+
+    .premium-input-group .input-wrapper i:not(.password-toggle) {
+        position: absolute;
+        left: 0;
+        color: var(--primary-blue);
+        opacity: 0.4;
+        font-size: 0.9rem;
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+
+    .premium-input-group:focus-within i:not(.password-toggle) {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+
+    .premium-input-group .form-control,
+    .premium-input-group .form-select {
+        border: none !important;
+        padding: 0 0 0 28px !important;
+        font-weight: 600 !important;
+        color: #1a1c23 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 0.95rem !important;
+        width: 100% !important;
+    }
+
+    .premium-input-group .form-control::placeholder {
+        color: #adb5bd;
+        font-weight: 400;
+        font-size: 0.85rem;
+    }
+
+    .premium-input-group i {
+        color: var(--primary-blue);
+        opacity: 0.3;
+        font-size: 1.2rem;
+        transition: all 0.3s ease;
+    }
+
+    .premium-input-group:focus-within i {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+
+    /* Password Toggle */
+    .password-toggle {
         cursor: pointer;
-        padding: 0;
-        text-decoration: none !important;
+        transition: all 0.2s ease;
     }
-    .btn-premium-eval {
-        background-color: #f0f9ff;
-        color: #0369a1 !important;
+    
+    .password-toggle:hover {
+        color: var(--primary-blue) !important;
+        opacity: 1 !important;
     }
-    .btn-premium-eval:hover {
-        background-color: #0369a1;
-        color: #fff !important;
-        box-shadow: 0 0 0 4px rgba(3, 105, 161, 0.15);
+
+    /* Premium Avatar Upload Area */
+    .avatar-upload-wrapper {
+        position: absolute;
+        width: 90px;
+        height: 90px;
+        bottom: -45px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
     }
-    .btn-premium-edit {
-        background-color: #eff6ff;
-        color: #2563eb !important;
+
+    .avatar-preview-container {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        background: #f8faff;
+        border: 4px solid #ffffff;
+        box-shadow: 0 5px 15px rgba(0, 56, 168, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
     }
-    .btn-premium-edit:hover {
-        background-color: #2563eb;
-        color: #fff !important;
-        box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+
+    .avatar-preview-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
-    .btn-premium-delete {
-        background-color: #fef2f2;
-        color: #ef4444 !important;
+
+    .avatar-edit-btn {
+        position: absolute;
+        bottom: 5px;
+        right: 5px;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--primary-blue);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        transition: all 0.2s ease;
+        border: 2px solid white;
     }
-    .btn-premium-delete:hover {
-        background-color: #ef4444;
-        color: #fff !important;
-        box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2);
+
+    .avatar-edit-btn:hover {
+        transform: scale(1.1);
+        background: var(--dark-blue);
     }
 </style>
+
+<?php
+
+// Fetch all departments and programs for the modals
+$departments_list = [];
+$dept_res = $conn->query("SELECT dept_id, title_diploma_program FROM departments WHERE status = 'active' ORDER BY title_diploma_program ASC");
+if ($dept_res) {
+    while ($d = $dept_res->fetch_assoc()) $departments_list[] = $d;
+}
+
+$programs_all_list = [];
+$prog_res = $conn->query("SELECT program_id, dept_id, program_name as title_specific_program FROM programs ORDER BY program_name ASC");
+if ($prog_res) {
+    while ($p = $prog_res->fetch_assoc()) $programs_all_list[] = $p;
+}
+?>
+
 <?php
 
 // === STEP 3: Fetch data ===
 $programWhere = $isStaff ? " AND p.dept_id = $deptId" : "";
 $programs_res = $conn->query("SELECT p.*, d.title_diploma_program FROM programs p JOIN departments d ON p.dept_id = d.dept_id WHERE p.status = 'active' $programWhere ORDER BY p.program_name ASC");
 $programs_list = [];
-while ($p = $programs_res->fetch_assoc()) {
-    $programs_list[] = $p;
+if ($programs_res) {
+    while ($p = $programs_res->fetch_assoc()) {
+        $programs_list[] = $p;
+    }
 }
 
 $deptWhere = $isStaff ? " WHERE dept_id = $deptId" : " WHERE status = 'active'";
 $dept_res = $conn->query("SELECT dept_id, title_diploma_program FROM departments $deptWhere ORDER BY title_diploma_program ASC");
-$departments_list = [];
-while ($d = $dept_res->fetch_assoc()) {
-    $departments_list[] = $d;
+if ($dept_res) {
+    while ($d = $dept_res->fetch_assoc()) {
+        $departments_list[] = $d;
+    }
 }
 
 $studentWhere = $isStaff ? " WHERE s.dept_id = $deptId" : "";
 $students = $conn->query("
-    SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name,
+    SELECT s.*, u.username, u.profile_image, d.title_diploma_program as dept_name, p.program_name,
     (SELECT COUNT(*) FROM grades g WHERE g.student_id = s.student_id AND (g.remarks IN ('Failed', 'INC', 'Conditional', 'Dropped') OR g.grade >= 5.00)) as grade_backlog,
     (SELECT COUNT(*) FROM enrollments e WHERE e.student_id = s.student_id AND e.status = 'dropped') as enrollment_backlog
     FROM students s
@@ -262,86 +495,108 @@ $students = $conn->query("
 ");
 ?>
 
-<div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
-        <h5 class="mb-0 text-white fw-bold ms-2">
-            <i class="fas fa-user-graduate me-2 text-warning"></i> Student Academic Registry
+<div class="card premium-card border-0 shadow-sm rounded-4 mb-4">
+    <div class="card-header gradient-navy p-3 d-flex flex-wrap justify-content-between align-items-center rounded-top-4 gap-3">
+        <h5 class="mb-0 text-white fw-bold ms-2 flex-grow-1">
+            <i class="fas fa-user-graduate me-2 text-warning"></i> Student Registry
         </h5>
-        <div class="d-flex gap-2 pe-2">
-            <a href="student_import.php" class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold border-0">
-                <i class="fas fa-file-import me-1"></i> Import
+        
+        <div class="search-box-container">
+            <div class="search-box-premium">
+                <i class="fas fa-search"></i>
+                <input type="text" id="studentSearchInput" class="form-control" placeholder="Search Identity..." onkeyup="filterStudents()">
+                <span class="ps-2 pe-3 text-white-50" id="searchCounter" style="font-size: 0.75rem; font-weight: 600; white-space: nowrap;"></span>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2">
+            <a href="student_import.php" class="btn-premium-secondary py-2" style="background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.2); color: white !important;">
+                <i class="fas fa-file-import"></i> Import
             </a>
-            <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary" data-bs-toggle="modal" data-bs-target="#addModal">
-                <i class="fas fa-plus-circle me-1"></i> Add Student
+            <button class="btn-premium-action px-4 py-2" style="background: white; color: var(--primary-indigo) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.1);" data-bs-toggle="modal" data-bs-target="#addModal">
+                <i class="fas fa-plus-circle"></i> Add Student
             </button>
         </div>
     </div>
-    <div class="card-body p-0">
+    <div class="card-body p-4 bg-light bg-opacity-50">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 data-table">
-                <thead class="bg-light">
+            <table class="table align-middle mb-0 students-table premium-table data-table" id="studentTable">
+                <thead>
                     <tr>
-                        <th class="ps-4">Student ID / No</th>
-                        <th>Student Name & Identity</th>
-                        <th>Academic Placement</th>
-                        <th>Year Level</th>
-                        <th>Contact info</th>
-                        <th>Status</th>
-                        <th class="text-end pe-4">Control Actions</th>
+                        <th class="ps-4" style="width: 120px;">Student No.</th>
+                        <th style="min-width: 200px;">Student Name</th>
+                        <th style="min-width: 180px;">Academic Placement</th>
+                        <th style="width: 90px;" class="text-center">Year</th>
+                        <th style="min-width: 160px;">Contact Info</th>
+                        <th style="width: 130px;">Admission Date</th>
+                        <th style="width: 110px;">Status</th>
+                        <th class="text-end pe-4" style="width: 140px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if ($students): ?>
                     <?php while ($s = $students->fetch_assoc()): ?>
                     <tr>
                         <td class="ps-4">
-                            <span class="fw-bold text-primary">#<?php echo htmlspecialchars($s['student_no'] ?? ''); ?></span>
+                            <span class="fw-bold text-primary" style="font-size: 0.85rem;">#<?php echo htmlspecialchars($s['student_no'] ?? ''); ?></span>
                         </td>
                         <td>
-                            <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px;">
-                                    <i class="fas fa-user-graduate"></i>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar-sm bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center flex-shrink-0 overflow-hidden">
+                                    <?php if (!empty($s['profile_image'])): ?>
+                                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($s['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-user-graduate"></i>
+                                    <?php endif; ?>
                                 </div>
                                 <div>
-                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? '')); ?></div>
-                                    <div class="text-muted" style="font-size: 0.70rem;"><i class="fas fa-fingerprint me-1"></i> UID: <?php echo $s['user_id']; ?></div>
+                                    <div class="fw-bold text-dark" style="font-size: 0.9rem; line-height: 1.2;"><?php echo htmlspecialchars(($s['first_name'] ?? '') . ' ' . ($s['last_name'] ?? '')); ?></div>
+                                    <div class="text-muted" style="font-size: 0.70rem;"><i class="fas fa-fingerprint me-1"></i>UID: <?php echo $s['user_id']; ?></div>
                                 </div>
                             </div>
                         </td>
                         <td>
-                            <div class="fw-bold text-dark" style="font-size: 0.8rem;"><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></div>
-                            <div class="text-muted small" style="font-size: 0.7rem; text-transform: uppercase;"><?php echo htmlspecialchars($s['dept_name'] ?? 'Unassigned'); ?></div>
+                            <div class="fw-semibold text-dark" style="font-size: 0.82rem; line-height: 1.3;"><?php echo htmlspecialchars($s['program_name'] ?? 'N/A'); ?></div>
+                            <div class="text-muted" style="font-size: 0.70rem; text-transform: uppercase; letter-spacing: 0.3px;"><?php echo htmlspecialchars($s['dept_name'] ?? 'Unassigned'); ?></div>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.75rem;">Yr. <?php echo $s['year_level'] ?? '—'; ?></span>
                         </td>
                         <td>
-                            <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.7rem;">Year <?php echo $s['year_level'] ?? ''; ?></span>
+                            <div class="small text-truncate" style="max-width: 160px;"><i class="far fa-envelope me-1 text-muted"></i><?php echo htmlspecialchars($s['email'] ?? 'N/A'); ?></div>
+                            <div class="small"><i class="fas fa-phone me-1 text-muted"></i><?php echo htmlspecialchars($s['contact_number'] ?? 'N/A'); ?></div>
                         </td>
                         <td>
-                            <div class="small"><i class="far fa-envelope me-1 text-muted"></i> <?php echo htmlspecialchars($s['email'] ?? 'N/A'); ?></div>
-                            <div class="small"><i class="fas fa-phone me-1 text-muted"></i> <?php echo htmlspecialchars($s['contact_number'] ?? 'N/A'); ?></div>
+                            <?php if (!empty($s['enrollment_date']) && $s['enrollment_date'] !== '0000-00-00'): ?>
+                                <span class="small fw-semibold text-dark"><i class="fas fa-calendar-check me-1 text-success" style="font-size: 0.7rem;"></i><?php echo date('M d, Y', strtotime($s['enrollment_date'])); ?></span>
+                            <?php else: ?>
+                                <span class="text-muted small"><i class="fas fa-calendar-times me-1"></i>Not Set</span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <?php
-                                $statusColors = [
-                                    'active' => 'success',
-                                    'inactive' => 'secondary',
-                                    'graduated' => 'primary',
-                                    'dropped' => 'danger'
+                                $statusMap = [
+                                    'active'    => ['label' => 'Active',    'dot' => '#22c55e', 'cls' => 'active'],
+                                    'inactive'  => ['label' => 'Inactive',  'dot' => '#94a3b8', 'cls' => 'inactive'],
+                                    'graduated' => ['label' => 'Graduated', 'dot' => '#3b82f6', 'cls' => 'inactive'],
+                                    'dropped'   => ['label' => 'Dropped',   'dot' => '#ef4444', 'cls' => 'inactive'],
                                 ];
-                                $color = $statusColors[$s['status']] ?? 'secondary';
+                                $sm = $statusMap[$s['status']] ?? ['label' => ucfirst($s['status']), 'dot' => '#94a3b8', 'cls' => 'inactive'];
                             ?>
-                            <span class="badge rounded-pill bg-<?php echo $color; ?> bg-opacity-10 text-<?php echo $color; ?> px-3">
-                                <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> <?php echo ucfirst($s['status']); ?>
+                            <span class="status-pill status-<?php echo $sm['cls']; ?>">
+                                <div class="status-dot" style="background: <?php echo $sm['dot']; ?>;"></div> <?php echo $sm['label']; ?>
                             </span>
                         </td>
                         <td class="text-end pe-4">
                             <div class="d-flex justify-content-end gap-2">
-                                <a href="curriculum_evaluation.php?id=<?php echo $s['student_id']; ?>" class="btn-premium-eval" title="Evaluate Curriculum" target="_blank">
+                                <a href="curriculum_evaluation.php?id=<?php echo $s['student_id']; ?>" class="btn-premium-eval" title="Curriculum Evaluation" target="_blank">
                                     <i class="fas fa-file-invoice"></i>
                                 </a>
-                                <button class="btn-premium-edit" onclick='editStudent(<?php echo json_encode($s); ?>)' title="Edit Profile">
+                                <button class="btn-premium-edit" onclick="editStudent(<?php echo htmlspecialchars(json_encode($s), ENT_QUOTES, 'UTF-8'); ?>)" title="Edit Profile">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <?php if (getCurrentUserRole() === 'registrar'): ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this student?')">
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Delete this student record permanently?')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="student_id" value="<?php echo $s['student_id']; ?>">
@@ -354,283 +609,404 @@ $students = $conn->query("
                         </td>
                     </tr>
                     <?php endwhile; ?>
+                    <?php else: ?>
+                    <tr>
+                        <td colspan="8" class="text-center py-5">
+                            <div class="text-muted">
+                                <i class="fas fa-user-slash fs-1 mb-3 opacity-25"></i>
+                                <p class="mb-0">No student records found matching your criteria.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="addModal">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST">
-            <?php csrfField(); ?>
-            <input type="hidden" name="action" value="create">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
-                    <h5 class="mb-0 fw-bold"><i class="fas fa-user-plus me-2 text-warning"></i>Add Student</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="alert alert-info py-2">
-                        <small><i class="fas fa-info-circle"></i> Login Credentials will be generated automatically: <b>Username = ID</b> and <b>Password = Birthday (MM/DD/YYYY)</b>.</small>
-                    </div>
-                    <div class="mb-3">
-                        <label>Student Number (Leave blank for auto-generation)</label>
-                        <input type="text" name="student_no" class="form-control" placeholder="Optional - Auto-generated if blank">
-                    </div>
-                    <div class="mb-3">
-                        <label>Birth Date</label>
-                        <input type="date" name="date_of_birth" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="fw-bold text-primary border-bottom pb-1 d-block mb-3">Educational Background</label>
-                        <div class="row">
-                            <div class="col-md-9 mb-2">
-                                <label class="small text-muted">Elementary School</label>
-                                <input type="text" name="elem_school" class="form-control" placeholder="Complete School Name">
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="small text-muted">Graduation Year</label>
-                                <input type="text" name="elem_year" class="form-control" placeholder="YYYY">
-                            </div>
+<!-- Add Student Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <form method="POST" enctype="multipart/form-data" autocomplete="off">
+                <?php csrfField(); ?>
+                <input type="hidden" name="action" value="create">
+                
+                <div class="modal-header modal-premium-header py-4 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold text-white d-flex align-items-center">
+                        <div class="title-icon-wrapper me-3">
+                            <i class="fas fa-user-plus text-warning"></i>
                         </div>
-                        <div class="row">
-                            <div class="col-md-9 mb-2">
-                                <label class="small text-muted">Secondary School</label>
-                                <input type="text" name="secondary_school" class="form-control" placeholder="Complete School Name">
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="small text-muted">Graduation Year</label>
-                                <input type="text" name="secondary_year" class="form-control" placeholder="YYYY">
-                            </div>
+                        New Student Registration
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white opacity-75" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                    <!-- Avatar overlap -->
+                    <div class="avatar-upload-wrapper">
+                        <div class="avatar-preview-container" id="addAvatarPreview">
+                            <i class="fas fa-user-graduate fa-3x text-muted opacity-25"></i>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>First Name</label>
-                            <input type="text" name="first_name" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Last Name</label>
-                            <input type="text" name="last_name" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Middle Name</label>
-                            <input type="text" name="middle_name" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Gender</label>
-                            <select name="gender" class="form-select">
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Home Address</label>
-                            <input type="text" name="address" class="form-control" list="addresslist" placeholder="House No., Street, Brgy.">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Municipality/City</label>
-                            <input type="text" name="municipality" class="form-control" list="municipalitylist" placeholder="Municipality/City">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Religion</label>
-                            <input type="text" name="religion" class="form-control" list="religionlist">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Program (Course)</label>
-                            <select name="program_id" class="form-select" required>
-                                <option value="">-- Select Program --</option>
-                                <?php foreach ($programs_list as $prog): ?>
-                                    <option value="<?php echo $prog['program_id']; ?>"><?php echo htmlspecialchars($prog['program_name'] ?? ''); ?></option>
-                                <?php
-endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label>Diploma Program</label>
-                            <select name="dept_id" class="form-select" required>
-                                <option value="">-- Select Diploma Program --</option>
-                                <?php foreach ($departments_list as $dept): ?>
-                                    <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program'] ?? ''); ?></option>
-                                <?php
-endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Contact Number</label>
-                            <input type="text" name="contact_number" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Email Address</label>
-                            <input type="email" name="email" class="form-control">
-                        </div>
+                        <label for="add_profile_image" class="avatar-edit-btn">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" name="profile_image" id="add_profile_image" class="d-none" accept="image/*" onchange="previewImage(this, 'addAvatarPreview')">
                     </div>
                 </div>
-                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> Create Student Profile
+
+                <div class="modal-body p-4 p-md-5 bg-light" style="padding-top: 60px !important;">
+
+                    <div class="form-section-divider mb-4" style="margin-top: 0 !important;">
+                        <span><i class="fas fa-university me-2"></i>Academic Placement</span>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>Department / Sector</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-building"></i>
+                                    <select name="dept_id" id="add_dept_id" class="form-select" onchange="updatePrograms(this.value, 'add_program_id')" required>
+                                        <option value="">-- Select Department --</option>
+                                        <?php if(isset($departments_list)): foreach ($departments_list as $dept): ?>
+                                            <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program']); ?></option>
+                                        <?php endforeach; endif; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>Specific Course / Program</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-award"></i>
+                                    <select name="program_id" id="add_program_id" class="form-select" required>
+                                        <option value="">-- Select Department First --</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Identity -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-id-card me-2"></i>Account & Identity</span>
+                    </div>
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>Admission Date</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <input type="date" name="enrollment_date" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group shadow-sm border-primary border-opacity-10" style="background: rgba(0, 56, 168, 0.01);">
+                                <label class="text-primary">Account Password</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-shield-alt"></i>
+                                    <input type="password" name="password" id="add_password" class="form-control" placeholder="Default: Birthdate">
+                                    <i class="fas fa-eye-slash password-toggle" style="position: absolute; right: 0;" onclick="togglePasswordVisibility('add_password', this)"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Student Number</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-hashtag"></i>
+                                    <input type="text" name="student_no" class="form-control" placeholder="Leave blank for Auto-ID">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Year Level</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-layer-group"></i>
+                                    <select name="year_level" class="form-select">
+                                        <option value="1">1st Year</option>
+                                        <option value="2">2nd Year</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Personal Identity -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-user-tag me-2"></i>Personal Identity</span>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>First Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="first_name" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Last Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="last_name" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Middle Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="middle_name" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact & Demographics -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-address-book me-2"></i>Contact & Background</span>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Gender</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-venus-mars"></i>
+                                    <select name="gender" class="form-select">
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Birth Date</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <input type="date" name="date_of_birth" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Religion</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-hands-praying"></i>
+                                    <input type="text" name="religion" class="form-control" list="religionlist">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Contact Number</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-phone"></i>
+                                    <input type="text" name="contact_number" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Home Address</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <input type="text" name="address" class="form-control" list="addresslist" placeholder="Brgy / Street">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Municipality / City</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-city"></i>
+                                    <input type="text" name="municipality" class="form-control" list="municipalitylist" placeholder="Municipality">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Province</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-map"></i>
+                                    <input type="text" name="province" class="form-control" list="provincelist" placeholder="Province">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Educational History -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-history me-2"></i>Educational History</span>
+                    </div>
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-8">
+                            <div class="premium-input-group">
+                                <label>Elementary School</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-school"></i>
+                                    <input type="text" name="elem_school" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Graduation Year</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar"></i>
+                                    <input type="text" name="elem_year" class="form-control" placeholder="YYYY">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="premium-input-group">
+                                <label>Secondary School</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-school-flag"></i>
+                                    <input type="text" name="secondary_school" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Graduation Year</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <input type="text" name="secondary_year" class="form-control" placeholder="YYYY">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-white border-top-0 py-4 px-4 px-md-5 rounded-bottom-4 d-flex justify-content-between">
+                    <button type="button" class="btn-premium-secondary" data-bs-dismiss="modal">Discard</button>
+                    <button type="submit" class="btn-premium-action px-5">
+                        <i class="fas fa-plus-circle"></i> Register Student
                     </button>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
-<!-- Edit Modal -->
-<div class="modal fade" id="editModal">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST">
-            <?php csrfField(); ?>
-            <input type="hidden" name="action" value="update">
-            <input type="hidden" name="student_id" id="edit_student_id">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
-                    <h5 class="mb-0 fw-bold"><i class="fas fa-user-edit me-2 text-warning"></i>Edit Student Profile</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<!-- Edit Student Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <form method="POST" enctype="multipart/form-data" autocomplete="off">
+                <?php csrfField(); ?>
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="student_id" id="edit_student_id">
+                
+                <div class="modal-header modal-premium-header py-4 px-4 border-0 rounded-top-4">
+                    <h5 class="modal-title fw-bold text-white d-flex align-items-center">
+                        <div class="title-icon-wrapper me-3">
+                            <i class="fas fa-user-edit text-warning"></i>
+                        </div>
+                        Modify Student Portfolio
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white opacity-75" data-bs-dismiss="modal" aria-label="Close"></button>
+
+                    <!-- Avatar overlap -->
+                    <div class="avatar-upload-wrapper">
+                        <div class="avatar-preview-container" id="editAvatarPreview">
+                            <i class="fas fa-user-graduate fa-3x text-muted opacity-25"></i>
+                        </div>
+                        <label for="edit_profile_image" class="avatar-edit-btn">
+                            <i class="fas fa-camera"></i>
+                        </label>
+                        <input type="file" name="profile_image" id="edit_profile_image" class="d-none" accept="image/*" onchange="previewImage(this, 'editAvatarPreview')">
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <div id="disqualification_alert" class="alert alert-danger py-2 d-none">
-                        <i class="fas fa-exclamation-triangle me-2"></i> <strong>Disqualified:</strong> This student has backlogs (INC, Dropped, or 5.00). Honors and Graduation status are restricted.
+
+                <div class="modal-body p-4 p-md-5 bg-light" style="padding-top: 60px !important;">
+                    <div id="disqualification_alert"></div>
+
+                    <!-- Academic Placement -->
+                    <div class="form-section-divider mb-4" style="margin-top: 0 !important;">
+                        <span><i class="fas fa-university me-2"></i>Academic Placement</span>
                     </div>
-                    <div class="mb-3">
-                        <label>Student Number</label>
-                        <input type="text" name="student_no" id="edit_student_no" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>Birth Date</label>
-                        <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="fw-bold text-primary border-bottom pb-1 d-block mb-3">Educational Background</label>
-                        <div class="row">
-                            <div class="col-md-9 mb-2">
-                                <label class="small text-muted">Elementary School</label>
-                                <input type="text" name="elem_school" id="edit_elem_school" class="form-control">
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="small text-muted">Graduation Year</label>
-                                <input type="text" name="elem_year" id="edit_elem_year" class="form-control" placeholder="YYYY">
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="premium-input-group shadow-sm border-primary border-opacity-10" style="background: rgba(0, 56, 168, 0.01);">
+                                <label>Update Password</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-shield-alt"></i>
+                                    <input type="password" name="password" id="edit_password" class="form-control" placeholder="Leave blank to keep">
+                                    <i class="fas fa-eye-slash password-toggle" style="position: absolute; right: 0;" onclick="togglePasswordVisibility('edit_password', this)"></i>
+                                </div>
                             </div>
                         </div>
-                        <div class="row">
-                            <div class="col-md-9 mb-2">
-                                <label class="small text-muted">Secondary School</label>
-                                <input type="text" name="secondary_school" id="edit_secondary_school" class="form-control">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Department / Sector</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-building"></i>
+                                    <select name="dept_id" id="edit_dept_id" class="form-select" onchange="updatePrograms(this.value, 'edit_program_id')" required>
+                                        <option value="">-- Select Department --</option>
+                                        <?php if(isset($departments_list)): foreach ($departments_list as $dept): ?>
+                                            <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program']); ?></option>
+                                        <?php endforeach; endif; ?>
+                                    </select>
+                                </div>
                             </div>
-                            <div class="col-md-3 mb-2">
-                                <label class="small text-muted">Graduation Year</label>
-                                <input type="text" name="secondary_year" id="edit_secondary_year" class="form-control" placeholder="YYYY">
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Specific Course / Program</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-award"></i>
+                                    <select name="program_id" id="edit_program_id" class="form-select" required>
+                                        <?php if(isset($programs_all_list)): foreach ($programs_all_list as $prog): ?>
+                                            <option value="<?php echo $prog['program_id']; ?>"><?php echo htmlspecialchars($prog['title_specific_program'] ?? $prog['program_name']); ?></option>
+                                        <?php endforeach; endif; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Record Status</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-toggle-on"></i>
+                                    <select name="status" id="edit_status" class="form-select" required>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                        <option value="graduated">Graduated</option>
+                                        <option value="dropped">Dropped</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>First Name</label>
-                            <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Last Name</label>
-                            <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Middle Name</label>
-                            <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Gender</label>
-                            <select name="gender" id="edit_gender" class="form-select">
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Home Address</label>
-                            <input type="text" name="address" id="edit_address" class="form-control" list="addresslist">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Municipality/City</label>
-                            <input type="text" name="municipality" id="edit_municipality" class="form-control" list="municipalitylist">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Religion</label>
-                            <input type="text" name="religion" id="edit_religion" class="form-control" list="religionlist">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Program (Course)</label>
-                            <select name="program_id" id="edit_program_id" class="form-select" required>
-                                <option value="">-- Select Program --</option>
-                                <?php foreach ($programs_list as $prog): ?>
-                                    <option value="<?php echo $prog['program_id']; ?>"><?php echo htmlspecialchars($prog['program_name']); ?></option>
-                                <?php
-endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label>Diploma Program</label>
-                            <select name="dept_id" id="edit_dept_id" class="form-select" required>
-                                <option value="">-- Select Diploma Program --</option>
-                                <?php foreach ($departments_list as $dept): ?>
-                                    <option value="<?php echo $dept['dept_id']; ?>"><?php echo htmlspecialchars($dept['title_diploma_program']); ?></option>
-                                <?php
-endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Contact Number</label>
-                            <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Email</label>
-                            <input type="email" name="email" id="edit_email" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Year Level</label>
-                            <select name="year_level" id="edit_year_level" class="form-select" required>
-                                <option value="1">1st Year</option>
-                                <option value="2">2nd Year</option>
-                                <option value="3">3rd Year</option>
-                                <option value="4">4th Year</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Status</label>
-                            <select name="status" id="edit_status" class="form-select" required>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="graduated">Graduated</option>
-                                <option value="dropped">Dropped (Clears Current Load)</option>
-                            </select>
-                            <div class="form-text small text-danger">Selecting 'Dropped' will automatically remove current semester enrollments.</div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-12 mb-3">
-                            <label class="fw-bold text-primary"><i class="fas fa-medal me-1"></i> Academic Honor (Manual Evaluation)</label>
-                            <select name="academic_honor" id="edit_academic_honor" class="form-select border-primary">
+
+                    <div class="premium-input-group border-info shadow-sm bg-light-subtle mb-4">
+                        <label>Academic Honor Rank</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-star text-warning"></i>
+                            <select name="academic_honor" id="edit_academic_honor" class="form-select">
                                 <option value="">-- No Honor Assigned --</option>
                                 <option value="With Honor">With Honor</option>
                                 <option value="With High Honor">With High Honor</option>
@@ -639,18 +1015,232 @@ endforeach; ?>
                                 <option value="Magna Cum Laude">Magna Cum Laude</option>
                                 <option value="Summa Cum Laude">Summa Cum Laude</option>
                             </select>
-                            <small class="text-muted">Only assign this after careful evaluation of grades and residency.</small>
+                        </div>
+                    </div>
+
+                    <!-- Identity -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-id-card me-2"></i>Account & Identity</span>
+                    </div>
+                    
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Student Number</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-hashtag"></i>
+                                    <input type="text" name="student_no" id="edit_student_no" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Birth Date</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Year Level</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-layer-group"></i>
+                                    <select name="year_level" id="edit_year_level" class="form-select">
+                                        <option value="1">1st Year</option>
+                                        <option value="2">2nd Year</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Admission Date</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-plus"></i>
+                                    <input type="date" name="enrollment_date" id="edit_enrollment_date" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Personal Identity -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-user-tag me-2"></i>Personal Identity</span>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>First Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Last Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Middle Name</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-user"></i>
+                                    <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Contact & Demographics -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-address-book me-2"></i>Contact & Background</span>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Gender</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-venus-mars"></i>
+                                    <select name="gender" id="edit_gender" class="form-select">
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Birth Date</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Religion</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-hands-praying"></i>
+                                    <input type="text" name="religion" id="edit_religion" class="form-control" list="religionlist">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Contact Number</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-phone"></i>
+                                    <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="premium-input-group mb-4">
+                        <label>Email Address</label>
+                        <div class="input-wrapper">
+                            <i class="fas fa-envelope"></i>
+                            <input type="email" name="email" id="edit_email" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Home Address</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-map-marker-alt"></i>
+                                    <input type="text" name="address" id="edit_address" class="form-control" list="addresslist" placeholder="Brgy / Street">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Municipality / City</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-city"></i>
+                                    <input type="text" name="municipality" id="edit_municipality" class="form-control" list="municipalitylist" placeholder="Municipality">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Province</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-map"></i>
+                                    <input type="text" name="province" id="edit_province" class="form-control" list="provincelist" placeholder="Province">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Educational History -->
+                    <div class="form-section-divider mb-4">
+                        <span><i class="fas fa-history me-2"></i>Educational History</span>
+                    </div>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-8">
+                            <div class="premium-input-group">
+                                <label>Elementary School</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-school"></i>
+                                    <input type="text" name="elem_school" id="edit_elem_school" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Graduation Year</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar"></i>
+                                    <input type="text" name="elem_year" id="edit_elem_year" class="form-control" placeholder="YYYY">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="premium-input-group">
+                                <label>Secondary School</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-school-flag"></i>
+                                    <input type="text" name="secondary_school" id="edit_secondary_school" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Graduation Year</label>
+                                <div class="input-wrapper">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <input type="text" name="secondary_year" id="edit_secondary_year" class="form-control" placeholder="YYYY">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light border-0 py-3 rounded-bottom-4">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
-                        <i class="fas fa-save me-1"></i> Update Student Profile
+
+                <div class="modal-footer bg-white border-top-0 py-4 px-4 px-md-5 rounded-bottom-4 d-flex justify-content-between">
+                    <button type="button" class="btn-premium-secondary" data-bs-dismiss="modal">Discard changes</button>
+                    <button type="submit" class="btn-premium-action px-5">
+                        <i class="fas fa-save"></i> Update Portfolio
                     </button>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -698,56 +1288,141 @@ endforeach; ?>
 </datalist>
 
 <script>
-function editStudent(data) {
-    document.getElementById('edit_student_id').value = data.student_id;
-    document.getElementById('edit_student_no').value = data.student_no;
-    document.getElementById('edit_date_of_birth').value = data.date_of_birth;
-    document.getElementById('edit_first_name').value = data.first_name;
-    document.getElementById('edit_last_name').value = data.last_name;
-    document.getElementById('edit_middle_name').value = data.middle_name || '';
-    document.getElementById('edit_gender').value = data.gender || 'Male';
-    document.getElementById('edit_address').value = data.address || '';
-    document.getElementById('edit_municipality').value = data.municipality || '';
-    document.getElementById('edit_religion').value = data.religion || '';
-    document.getElementById('edit_contact_number').value = data.contact_number || '';
-    document.getElementById('edit_email').value = data.email || '';
-    
-    document.getElementById('edit_elem_school').value = data.elem_school || '';
-    document.getElementById('edit_elem_year').value = data.elem_year || '';
-    document.getElementById('edit_secondary_school').value = data.secondary_school || '';
-    document.getElementById('edit_secondary_year').value = data.secondary_year || '';
-    
-    document.getElementById('edit_program_id').value = data.program_id || '';
-    document.getElementById('edit_dept_id').value = data.dept_id || '';
-    document.getElementById('edit_year_level').value = data.year_level;
-    document.getElementById('edit_status').value = data.status;
-    document.getElementById('edit_academic_honor').value = data.academic_honor || '';
-
-    // Handle Disqualification UI
-    const isDisqualified = (parseInt(data.grade_backlog) > 0 || parseInt(data.enrollment_backlog) > 0);
-    const alert = document.getElementById('disqualification_alert');
-    const honorSelect = document.getElementById('edit_academic_honor');
-    const statusSelect = document.getElementById('edit_status');
-
-    if (isDisqualified) {
-        alert.classList.remove('d-none');
-        honorSelect.disabled = true;
+    // Dynamic Program Filtering
+    function updatePrograms(deptId, targetSelectId) {
+        const targetSelect = document.getElementById(targetSelectId);
+        if (!targetSelect) return;
         
-        statusSelect.addEventListener('change', function() {
-            if (this.value === 'graduated') {
-                alert('Warning: This student has backlogs and is technically unqualified for graduation.');
-                if (data.status !== 'graduated') {
-                    this.value = data.status; // Revert
-                }
-            }
+        targetSelect.innerHTML = '<option value="">-- Select Program --</option>';
+        if (!deptId) return;
+
+        const allPrograms = <?php echo json_encode($programs_all_list); ?>;
+        const filtered = allPrograms.filter(p => p.dept_id == deptId);
+        
+        filtered.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.program_id;
+            opt.textContent = p.title_specific_program || p.program_name;
+            targetSelect.appendChild(opt);
         });
-    } else {
-        alert.classList.add('d-none');
-        honorSelect.disabled = false;
     }
 
-    new bootstrap.Modal(document.getElementById('editModal')).show();
-}
+    // Modal data mapping
+    function editStudent(data) {
+        // Reset and populate fields
+        document.getElementById('edit_student_id').value = data.student_id;
+        document.getElementById('edit_student_no').value = data.student_no;
+        document.getElementById('edit_first_name').value = data.first_name;
+        document.getElementById('edit_last_name').value = data.last_name;
+        document.getElementById('edit_middle_name').value = data.middle_name || '';
+        document.getElementById('edit_date_of_birth').value = data.date_of_birth;
+        document.getElementById('edit_gender').value = data.gender || 'Male';
+        document.getElementById('edit_year_level').value = data.year_level;
+        document.getElementById('edit_status').value = data.status;
+        document.getElementById('edit_academic_honor').value = data.academic_honor || '';
+        document.getElementById('edit_enrollment_date').value = data.enrollment_date || '';
+        document.getElementById('edit_province').value = data.province || '';
+        
+        // Handle Program and Dept mapping correctly
+        const deptSelect = document.getElementById('edit_dept_id');
+        deptSelect.value = data.dept_id || '';
+        updatePrograms(data.dept_id, 'edit_program_id');
+        document.getElementById('edit_program_id').value = data.program_id || '';
+
+        // Reset password field
+        document.getElementById('edit_password').value = '';
+
+        // Handle Avatar Preview
+        const preview = document.getElementById('editAvatarPreview');
+        if (data.profile_image) {
+            preview.innerHTML = `<img src="../${data.profile_image}" alt="Profile">`;
+        } else {
+            preview.innerHTML = `<i class="fas fa-user-graduate fa-3x text-muted opacity-25"></i>`;
+        }
+
+        // Handle Disqualification UI
+        const isDisqualified = (parseInt(data.grade_backlog) > 0 || parseInt(data.enrollment_backlog) > 0);
+        const alert = document.getElementById('disqualification_alert');
+        const honorSelect = document.getElementById('edit_academic_honor');
+        const statusSelect = document.getElementById('edit_status');
+
+        if (isDisqualified) {
+            alert.classList.remove('d-none');
+            alert.innerHTML = `
+                <div class="alert alert-danger py-4 rounded-4 mb-4 border-0 shadow-sm" style="background: rgba(220, 53, 69, 0.1); border-left: 5px solid #dc3545 !important;">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-exclamation-triangle fa-2x me-3 text-danger"></i>
+                        <div>
+                            <h6 class="fw-bold mb-1 text-danger">Academic Restriction Alert</h6>
+                            <p class="small mb-0 text-dark opacity-75">This student has active grade backlogs. Graduation and honor ranking are currently restricted.</p>
+                        </div>
+                    </div>
+                </div>`;
+            honorSelect.disabled = true;
+            
+            statusSelect.addEventListener('change', function() {
+                if (this.value === 'graduated') {
+                    alert('Warning: This student has backlogs and is technically unqualified for graduation.');
+                    if (data.status !== 'graduated') {
+                        this.value = data.status;
+                    }
+                }
+            });
+        } else {
+            alert.classList.add('d-none');
+            alert.innerHTML = '';
+            honorSelect.disabled = false;
+        }
+
+        const modal = new bootstrap.Modal(document.getElementById('editModal'));
+        modal.show();
+    }
+
+    // Image Preview Helper
+    function previewImage(input, previewId) {
+        const preview = document.getElementById(previewId);
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
+            }
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+
+    // Password Toggle Helper
+    function togglePasswordVisibility(fieldId, icon) {
+        const field = document.getElementById(fieldId);
+        if (field.type === "password") {
+            field.type = "text";
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
+        } else {
+            field.type = "password";
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        }
+    }
+
+    // Table Filter
+    function filterStudents() {
+        const input = document.getElementById('studentSearchInput');
+        const filter = input.value.toLowerCase().trim();
+        const tr = document.querySelectorAll('#studentTable tbody tr');
+        const counter = document.getElementById('searchCounter');
+        let visibleCount = 0;
+
+        tr.forEach(row => {
+            if (row.textContent.toLowerCase().includes(filter)) {
+                row.style.display = "";
+                visibleCount++;
+            } else {
+                row.style.display = "none";
+            }
+        });
+
+        counter.textContent = filter === "" ? "" : visibleCount + " found";
+    }
 </script>
 
 <?php require_once '../includes/footer.php'; ?>

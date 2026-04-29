@@ -24,6 +24,23 @@ $registrarPosition = getSetting('registrar_position', 'Registrar');
 $regStmt->close();
 
 $userId = getCurrentUserId();
+// Fetch the person printing the document (Prepared By)
+$prepStmt = $conn->prepare("SELECT username, role FROM users WHERE user_id = ?");
+$prepStmt->bind_param("i", $userId);
+$prepStmt->execute();
+$prepRes = $prepStmt->get_result()->fetch_assoc();
+$preparedByName = $prepRes ? $prepRes['username'] : 'System Generated';
+$preparedByRole = $prepRes ? $prepRes['role'] : '';
+
+// Map roles to professional titles
+$roleTitles = [
+    'registrar' => 'Registrar',
+    'registrar_staff' => 'Clerk',
+    'admin' => 'Administrator'
+];
+$preparedByTitle = $roleTitles[$preparedByRole] ?? 'Staff';
+$prepStmt->close();
+
 // 1. Get student information FIRST
 $stmt = $conn->prepare("
     SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name
@@ -66,11 +83,8 @@ $vHash = hash('sha256', 'BCAT_TRANSCRIPT_' . $transcriptId);
 // For now, let's just generate it on the fly and use the ID in the URL for simpler lookup, 
 // but we will use the hash for security.
 
-// Construct Verification URL
-$protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'];
-$baseDir = rtrim(dirname(dirname($_SERVER['PHP_SELF'])), '/\\');
-$verifyUrl = "$protocol://$host$baseDir/verify.php?tid=$transcriptId&v=$vHash";
+// Construct Verification URL using BASE_URL
+$verifyUrl = BASE_URL . "verify.php?tid=$transcriptId&v=$vHash";
 
 // Log audit action
 logAudit($userId, 'PRINT_TOR', 'transcripts', $studentId, null, 'Generated official Transcript of Records for student: ' . ($student['student_no'] ?? $studentId));
@@ -91,14 +105,14 @@ $stmt = $conn->prepare("
         cs.school_year,
         cs.schedule,
         cs.room,
-        g.midterm,
-        g.final,
+        /* Removed Midterm/Final */
         g.grade,
         g.remarks,
         g.status
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     WHERE e.student_id = ?
     ORDER BY cs.school_year, cs.semester, c.course_code
@@ -128,7 +142,7 @@ foreach ($allGrades as $period => $periodGrades) {
 $paperSize = 'legal';
 
 $pageConfig = [
-    'legal' => ['width' => 216, 'height' => 356, 'rows' => 10],
+    'legal' => ['width' => 216, 'height' => 356, 'rows' => 22],
 ];
 
 $config = $pageConfig[$paperSize];
@@ -148,9 +162,9 @@ function renderTORHeader($schoolName, $schoolRegion, $schoolAddress, $docTitle, 
         </div>
         <div class="header-text text-center mx-3" style="flex: 1;">
             <h6 class="mb-0 text-uppercase fw-normal small" style="letter-spacing: 1px; color: #64748b;">Republic of the Philippines</h6>
-            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #1e293b;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
+            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #0038A8;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
             <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolRegion); ?></h6>
-            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0f172a; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
+            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0038A8; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
             <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolAddress); ?></h6>
         </div>
         <div class="header-logo">
@@ -171,7 +185,7 @@ function renderTORHeader($schoolName, $schoolRegion, $schoolAddress, $docTitle, 
 <?php
 }
 
-function renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $torId)
+function renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $torId, $preparedByName, $preparedByTitle)
 {
 ?>
     <div class="mt-auto">
@@ -222,9 +236,15 @@ function renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits,
                     </div>
 
                     <div class="signature-block w-100 text-center">
-                        <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                        <div class="prepared-by-section text-start mb-5" style="margin-top: 10px;">
+                            <div class="text-muted" style="font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Prepared By:</div>
+                            <div class="fw-bold text-dark d-inline-block mt-1" style="font-size: 0.9rem; min-width: 15rem; border-bottom: 2px solid #cbd5e0;"><?php echo htmlspecialchars($preparedByName); ?></div>
+                            <div class="text-muted fw-bold text-uppercase mt-1" style="font-size: 0.7rem; letter-spacing: 0.05em;"><?php echo htmlspecialchars($preparedByTitle); ?></div>
+                        </div>
+
+                        <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 20px auto 6px auto;"></div>
                         <div class="fw-bold text-uppercase text-dark" style="font-size: 1rem;"><?php echo $registrarName; ?></div>
-                        <div class="text-muted fw-bold text-uppercase" style="font-size: 0.7rem;"><?php echo $registrarPosition; ?></div>
+                        <div class="text-muted fw-bold text-uppercase mt-2" style="font-size: 0.7rem;"><?php echo $registrarPosition; ?></div>
                         <div class="text-muted small mt-1">Authorized Official Signature</div>
                     </div>
                 </div>
@@ -233,8 +253,8 @@ function renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits,
     endif; ?>
 
         <div class="d-flex justify-content-center align-items-center text-center text-muted small border-top pt-2 mt-2">
-            <div style="width: 50px; height: 50px; border: 1.5px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; color: #94a3b8; margin-right: 12px; border-radius: 4px; line-height: 1.1;">
-                DRY<br>SEAL
+            <div style="width: 70px; height: 70px; border: 2px solid #0038A8; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 900; color: #0038A8; margin-right: 15px; background: rgba(0, 56, 168, 0.02); text-transform: uppercase; line-height: 1.1;">
+                OFFICIAL<br>DRY SEAL
             </div>
             <div class="text-start">
                 <span class="text-primary me-2">●</span>
@@ -256,7 +276,8 @@ $stmt = $conn->prepare("
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     WHERE e.student_id = ? 
     AND (
         (g.status = 'approved' AND (g.remarks IN ('Passed', 'Excellent', 'Very Good', 'Good', 'Satisfactory', 'Fair') OR (g.grade > 0 AND g.grade <= 3.00)))
@@ -284,9 +305,10 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Transcript - <?php echo htmlspecialchars($student['student_no']); ?></title>
+    <title>Transcript - <?php echo htmlspecialchars($student['student_no']); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Bootstrap CSS for mirroring the student style -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
@@ -299,7 +321,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         }
 
         .transcript-container {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif !important;
             max-width: 1000px;
             margin: 30px auto;
             color: #1a202c;
@@ -322,7 +344,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             transform: translate(-50%, -50%);
             width: 550px;
             height: auto;
-            opacity: 0.05;
+            opacity: 0.08;
             pointer-events: none;
             z-index: 0;
             user-select: none;
@@ -346,12 +368,12 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         .title-underline {
             height: 3px;
             width: 60px;
-            background-color: #0d6efd;
+            background-color: #0038A8;
         }
 
         .header-double-line {
-            border-top: 2.5px solid #0d6efd;
-            border-bottom: 1px solid #0d6efd;
+            border-top: 2.5px solid #0038A8;
+            border-bottom: 1px solid #0038A8;
             height: 5px;
             margin: 15px 0 20px 0;
             width: 100%;
@@ -419,7 +441,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         .grading-system-box {
             background-color: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-left: 4px solid #3182ce;
+            border-left: 4px solid #0038A8;
             border-radius: 0 4px 4px 0;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
@@ -443,7 +465,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             text-align: center;
         }
         .sig-line {
-            border-bottom: 2px solid #1e293b;
+            border-bottom: 2px solid #0038A8;
             margin-bottom: 6px;
             height: 40px;
             width: 90%;
@@ -497,8 +519,9 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
                 box-shadow: none !important;
                 padding: 8mm 12mm !important;
                 margin: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
                 height: auto !important;
-                min-height: 100% !important;
                 border-radius: 0 !important;
                 display: flex !important;
                 flex-direction: column !important;
@@ -588,7 +611,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
     <div class="transcript-container" id="transcriptCard<?php echo $pageNumber; ?>" style="<?php echo $pageNumber < $totalPageCount ? 'page-break-after: always;' : ''; ?>; <?php echo $pageNumber > 1 ? 'margin-top: 50px;' : ''; ?>">
         <img src="../BCAT logo 2024.png" class="watermark" alt="BCAT Watermark">
         
-        <?php renderTORHeader($schoolName, $schoolRegion, $schoolAddress, getSetting('registrar_doc_title', 'OFFICIAL TRANSCRIPT OF RECORDS'), $pageNumber, $totalPageCount); ?>
+        <?php renderTORHeader($schoolName, $schoolRegion, $schoolAddress, 'Transcript Of Records', $pageNumber, $totalPageCount); ?>
         
         <!-- Student Information Block (Repeated on every page for context) -->
         <div class="row mb-3 student-info-grid">
@@ -601,7 +624,8 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
                             <div class="text-primary fw-bold small mt-1" style="letter-spacing: 0.5px;">
                                 <i class="fas fa-medal me-1"></i> <?php echo strtoupper($honors); ?>
                             </div>
-                        <?php endif; ?>
+                        <?php
+    endif; ?>
                     </div>
                 </div>
                 <div class="info-group">
@@ -670,8 +694,6 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
                         <th width="30%">Subject Description</th>
                         <th width="15%">Schedule / Room</th>
                         <th class="text-center">Units</th>
-                        <th class="text-center">Midterm</th>
-                        <th class="text-center">Final</th>
                         <th class="text-center">Grade</th>
                         <th class="text-center">Remarks</th>
                     </tr>
@@ -698,8 +720,6 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
                                     <div class="text-muted"><?php echo htmlspecialchars($grade['room'] ?? 'TBA'); ?></div>
                                 </td>
                                 <td class="text-center"><?php echo $grade['units']; ?></td>
-                                <td class="text-center"><?php echo $grade['midterm'] !== null ? number_format($grade['midterm'], 2) : '-'; ?></td>
-                                <td class="text-center"><?php echo $grade['final'] !== null ? number_format($grade['final'], 2) : '-'; ?></td>
                                 <td class="text-center fw-bold text-primary"><?php echo $grade['grade'] !== null ? number_format($grade['grade'], 2) : '—'; ?></td>
                                 <td class="text-center">
                                     <?php
@@ -740,7 +760,7 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
         <?php
     endif; ?>
 
-        <?php renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $transcriptId); ?>
+        <?php renderTORFooter($isLastPage, $totalPageCount, $pageNumber, $totalUnits, $gwa, $registrarName, $registrarPosition, $verifyUrl, $transcriptId, $preparedByName, $preparedByTitle); ?>
     </div>
     <?php
 endforeach; ?>

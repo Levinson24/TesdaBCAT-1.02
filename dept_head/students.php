@@ -11,7 +11,7 @@ $userProfile = getUserProfile($_SESSION['user_id'], 'dept_head');
 $deptId = $userProfile['dept_id'] ?? 0;
 
 $studentsQuery = $conn->prepare("
-    SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name as program_name
+    SELECT s.*, u.username, u.profile_image, d.title_diploma_program as dept_name, p.program_name as program_name
     FROM students s
     JOIN users u ON s.user_id = u.user_id
     LEFT JOIN departments d ON s.dept_id = d.dept_id
@@ -62,7 +62,7 @@ require_once '../includes/header.php';
 ?>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
         <h5 class="mb-0 text-white fw-bold ms-2">
             <i class="fas fa-user-graduate me-2 text-info"></i> Students in <?php echo htmlspecialchars($userProfile['dept_name'] ?? 'Your Diploma Program'); ?>
         </h5>
@@ -91,8 +91,12 @@ require_once '../includes/header.php';
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 35px; height: 35px;">
-                                    <i class="fas fa-user-graduate"></i>
+                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle overflow-hidden" style="width: 35px; height: 35px;">
+                                    <?php if (!empty($s['profile_image'])): ?>
+                                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($s['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-user-graduate"></i>
+                                    <?php endif; ?>
                                 </div>
                                 <div>
                                     <a href="view_student.php?student_id=<?php echo $s['student_id']; ?>" class="text-decoration-none fw-bold text-dark">

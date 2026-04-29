@@ -26,9 +26,10 @@ $sectionId = isset($_GET['section_id']) ? intval($_GET['section_id']) : 0;
 if ($sectionId > 0) {
     // Verify section belongs to instructor
     $sectionStmt = $conn->prepare("
-        SELECT cs.*, c.course_code, c.course_name
+        SELECT cs.*, s.subject_id as course_code, s.subject_name as course_name
         FROM class_sections cs
-        JOIN courses c ON cs.course_id = c.course_id
+        JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+        JOIN subjects s ON cur.subject_id = s.subject_id
         WHERE cs.section_id = ? AND cs.instructor_id = ?
     ");
     $sectionStmt->bind_param("ii", $sectionId, $instructorId);
@@ -45,7 +46,7 @@ if ($sectionId > 0) {
 
 // Handle template download
 if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
-    $headers = ['Enrollment ID', 'Student No', 'Student Name', 'Midterm', 'Final', 'Special Status (INC/Dropped)'];
+    $headers = ['Enrollment ID', 'Student No', 'Student Name', 'Grade (1.00-5.00)', 'Special Status (INC/Dropped)'];
     $filename = "grade_template_" . sanitizeInput($section['course_code']) . "_" . date('Y-m-d') . ".csv";
     
     header('Content-Type: text/csv');
@@ -56,7 +57,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
     
     // Get enrolled students
     $studentsStmt = $conn->prepare("
-        SELECT e.enrollment_id, s.student_no, CONCAT(s.last_name, ', ', s.first_name) as student_name, g.midterm, g.final, g.remarks
+        SELECT e.enrollment_id, s.student_no, CONCAT(s.last_name, ', ', s.first_name) as student_name, g.grade, g.remarks
         FROM enrollments e
         JOIN students s ON e.student_id = s.student_id
         LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
@@ -72,8 +73,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'download_template') {
             $row['enrollment_id'],
             $row['student_no'],
             $row['student_name'],
-            $row['midterm'] ?? '',
-            $row['final'] ?? '',
+            $row['grade'] ?? '',
             in_array($row['remarks'], ['INC', 'Dropped']) ? $row['remarks'] : ''
         ]);
     }
@@ -96,31 +96,31 @@ require_once '../includes/header.php';
         </nav>
 
         <div class="card premium-card shadow-sm border-0 overflow-hidden">
-            <div class="card-header gradient-navy p-4 text-white">
+            <div class="card-header bg-primary p-3 p-md-4 text-white">
                 <div class="d-flex align-items-center">
-                    <div class="bg-white bg-opacity-10 p-3 rounded-3 me-3">
-                        <i class="fas fa-file-excel fa-2x"></i>
+                    <div class="bg-white bg-opacity-10 p-2 rounded-3 me-3">
+                        <i class="fas fa-file-excel fa-lg"></i>
                     </div>
                     <div>
-                        <h4 class="mb-0 fw-bold">Bulk Grade Import</h4>
-                        <p class="small mb-0 opacity-75"><?php echo htmlspecialchars($section['course_code'] . ' - ' . $section['course_name']); ?></p>
+                        <h6 class="mb-0 fw-bold">Bulk Grade Import</h6>
+                        <p class="x-small mb-0 opacity-75 text-truncate" style="max-width: 200px;"><?php echo htmlspecialchars($section['course_code']); ?></p>
                     </div>
                 </div>
             </div>
             
-            <div class="card-body p-4 p-md-5">
+            <div class="card-body p-3 p-md-5">
                 <div class="alert alert-info border-0 shadow-sm rounded-4 mb-4">
                     <div class="d-flex">
-                        <div class="me-3">
-                            <i class="fas fa-info-circle fa-lg mt-1"></i>
+                        <div class="me-2 mt-1">
+                            <i class="fas fa-info-circle small"></i>
                         </div>
                         <div>
-                            <h6 class="fw-bold mb-1">How it works:</h6>
-                            <ul class="small mb-0 ps-3">
-                                <li>Download the <a href="?section_id=<?php echo $sectionId; ?>&action=download_template" class="fw-bold text-decoration-none">Pre-filled CSV Template</a>.</li>
-                                <li>Fill in the <strong>Midterm</strong> and <strong>Final</strong> columns (1.00 - 5.00).</li>
-                                <li>For special cases, use <strong>INC</strong> or <strong>Dropped</strong> in the last column.</li>
-                                <li>Upload the same file back to this page.</li>
+                            <h6 class="x-small fw-bold mb-1">Standard Operating Procedure:</h6>
+                            <ul class="x-small mb-0 ps-3">
+                                <li>Obtain the <a href="?section_id=<?php echo $sectionId; ?>&action=download_template" class="fw-bold text-decoration-none">Pre-filled CSV Schema</a>.</li>
+                                <li>Populate the <strong>Grade Input</strong> field (1.00 - 5.00).</li>
+                                <li>Use <strong>INC</strong> or <strong>Dropped</strong> for special cases.</li>
+                                <li>Upload the refined document for verification.</li>
                             </ul>
                         </div>
                     </div>
@@ -130,26 +130,26 @@ require_once '../includes/header.php';
                     <?php csrfField(); ?>
                     <input type="hidden" name="section_id" value="<?php echo $sectionId; ?>">
                     
-                    <div class="mb-5">
-                        <label class="form-label fw-bold">Select CSV File</label>
-                        <div class="upload-area border-dashed border-2 p-5 text-center rounded-4 cursor-pointer" id="dropZone" style="border: 2px dashed #dee2e6;">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold x-small text-muted text-uppercase ls-1">Document Upload</label>
+                        <div class="upload-area border-dashed border-2 p-4 p-md-5 text-center rounded-4 cursor-pointer" id="dropZone" style="border: 2px dashed #dee2e6;">
                             <input type="file" name="import_file" id="fileInput" class="d-none" accept=".csv" required>
                             <div id="uploadPlaceholder">
-                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
-                                <h5 class="fw-bold">Drag and drop CSV here</h5>
-                                <p class="text-muted small">Only the generated template is supported.</p>
+                                <i class="fas fa-cloud-upload-alt fa-2x text-primary mb-2"></i>
+                                <h6 class="fw-bold fs-15">Tap to Select CSV</h6>
+                                <p class="text-muted x-small">Compatible with system template only.</p>
                             </div>
                             <div id="fileInfo" class="d-none">
-                                <i class="fas fa-file-csv fa-3x text-success mb-3"></i>
-                                <h5 class="fw-bold" id="fileName">Filename.csv</h5>
-                                <button type="button" class="btn btn-link btn-sm text-danger" id="removeFile">Remove File</button>
+                                <i class="fas fa-file-csv fa-2x text-success mb-2"></i>
+                                <h6 class="fw-bold fs-15" id="fileName">Filename.csv</h6>
+                                <button type="button" class="btn btn-link btn-sm text-danger x-small" id="removeFile">Cancel Upload</button>
                             </div>
                         </div>
                     </div>
 
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary p-3 rounded-4 fw-bold shadow-sm" id="submitBtn">
-                            <i class="fas fa-upload me-2"></i> Upload and Preview Grades
+                        <button type="submit" class="btn btn-primary p-3 rounded-pill fw-bold shadow-sm" id="submitBtn">
+                            <i class="fas fa-upload me-2"></i> Preview & Sync
                         </button>
                     </div>
                 </form>

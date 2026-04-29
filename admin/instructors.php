@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $email = sanitizeInput($_POST['email']);
 
         $instructorIdNo = generateNextID('instructor');
-        $formatted_dob = date('m/d/Y', strtotime($dob));
+        $formatted_dob = date('Ymd', strtotime($dob));
         $username = $instructorIdNo;
         $password = hashPassword($formatted_dob);
 
@@ -78,7 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute();
         if ($u = $stmt->get_result()->fetch_assoc()) {
             $userId = $u['user_id'];
-            $conn->query("DELETE FROM users WHERE user_id = $userId");
+            $delUser = $conn->prepare("DELETE FROM users WHERE user_id = ?");
+            $delUser->bind_param("i", $userId);
+            $delUser->execute();
+            $delUser->close();
+            
             logAudit(getCurrentUserId(), 'DELETE', 'instructors', $instructorId, null, "Deleted instructor profile (ID: $instructorId) and associated user account.");
             redirectWithMessage('instructors.php', 'Instructor and account deleted successfully', 'success');
         }
@@ -89,7 +93,7 @@ $pageTitle = 'Manage Instructors';
 require_once '../includes/header.php';
 
 $instructors = $conn->query("
-    SELECT i.*, u.username, d.title_diploma_program as dept_name,
+    SELECT i.*, u.username, u.profile_image, d.title_diploma_program as dept_name,
            (SELECT COUNT(*) FROM class_sections cs WHERE cs.instructor_id = i.instructor_id AND cs.status = 'active') as total_classes
     FROM instructors i
     JOIN users u ON i.user_id = u.user_id
@@ -97,111 +101,8 @@ $instructors = $conn->query("
     ORDER BY i.last_name, i.first_name
 ");
 
-// === Premium Styles ===
 ?>
 <style>
-    .premium-card {
-        border-radius: 1rem;
-    }
-    .bg-dark-navy {
-        background-color: #002366 !important;
-    }
-    .instructors-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.7rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
-    }
-    .instructors-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 0.85rem;
-    }
-    /* Premium Action Buttons */
-    .btn-premium-edit {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155 !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    .btn-premium-edit:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
-
-    .btn-premium-delete {
-        width: 36px; height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50%;
-        color: #ef4444 !important;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        border: none;
-        cursor: pointer;
-    }
-    .btn-premium-delete:hover {
-        background-color: #fef2f2;
-        border-color: #fecaca;
-        color: #dc2626 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-    }
-    .status-pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 50px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .status-pill-active { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
-    .status-pill-inactive { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-    .status-dot { width: 6px; height: 6px; border-radius: 50%; }
-
-    .btn-premium-view {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155 !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    .btn-premium-view:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        transform: translateY(-1px);
-    }
-    .btn-premium-view i { color: #2563eb; margin-right: 0.5rem; }
-
     /* Modal Profile Styles */
     .profile-info-label {
         font-weight: 600;
@@ -247,7 +148,7 @@ $instructors = $conn->query("
 </style>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
         <h5 class="mb-0 text-white fw-bold ms-2">
             <i class="fas fa-chalkboard-teacher me-2 text-info"></i> Faculty & Instructor Registry
         </h5>
@@ -257,7 +158,7 @@ $instructors = $conn->query("
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 instructors-table data-table">
+            <table class="table table-hover align-middle mb-0 instructors-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-4">INSTRUCTOR ID</th>
@@ -266,23 +167,27 @@ $instructors = $conn->query("
                         <th>SPECIALIZATION</th>
                         <th class="text-center">LOAD</th>
                         <th class="text-end pe-4">STATUS</th>
-                        <th class="text-end pe-4">ACTIONS</th>
+                        <th class="text-end pe-4" style="min-width: 220px !important;">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php while ($i = $instructors->fetch_assoc()): ?>
-                    <tr>
+                    <tr class="table-row-premium align-middle">
                         <td class="ps-4" data-label="Instructor ID">
                             <span class="fw-bold text-primary"><?php echo htmlspecialchars($i['instructor_id_no'] ?? 'N/A'); ?></span>
                         </td>
-                        <td data-label="Faculty Identity">
+                        <td class="py-3" data-label="Faculty Identity">
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px;">
-                                    <i class="fas fa-chalkboard-teacher fa-lg"></i>
+                                <div class="avatar-premium me-3 overflow-hidden d-flex align-items-center justify-content-center">
+                                    <?php if (!empty($i['profile_image'])): ?>
+                                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($i['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-chalkboard-teacher"></i>
+                                    <?php endif; ?>
                                 </div>
-                                <div>
-                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars($i['first_name'] . ' ' . $i['last_name']); ?></div>
-                                    <div class="text-muted" style="font-size: 0.75rem;"><i class="far fa-envelope me-1"></i> <?php echo htmlspecialchars($i['email'] ?? 'N/A'); ?></div>
+                                <div class="d-flex flex-column">
+                                    <span class="identity-name"><?php echo htmlspecialchars($i['first_name'] . ' ' . $i['last_name']); ?></span>
+                                    <span class="identity-meta"><?php echo htmlspecialchars($i['email'] ?? 'N/A'); ?></span>
                                 </div>
                             </div>
                         </td>
@@ -303,29 +208,23 @@ $instructors = $conn->query("
                             </div>
                         </td>
                         <td data-label="Status">
-                            <?php if (($i['status'] ?? 'active') === 'active'): ?>
-                                <div class="status-pill status-pill-active">
-                                    <div class="status-dot" style="background: #22c55e;"></div> Active
-                                </div>
-                            <?php else: ?>
-                                <div class="status-pill status-pill-inactive">
-                                    <div class="status-dot" style="background: #94a3b8;"></div> Inactive
-                                </div>
-                            <?php endif; ?>
+                            <span class="status-pill <?php echo ($i['status'] ?? 'active') === 'active' ? 'status-active' : 'status-inactive'; ?>">
+                                <div class="status-dot" style="background: <?php echo ($i['status'] ?? 'active') === 'active' ? '#22c55e' : '#94a3b8'; ?>;"></div> <?php echo ucfirst($i['status'] ?? 'active'); ?>
+                            </span>
                         </td>
-                        <td class="text-end pe-4" data-label="Control Actions">
-                            <div class="action-container">
-                                <button class="btn-premium-view" onclick='viewInstructor(<?php echo json_encode($i); ?>)'>
+                        <td class="text-end pe-4 py-3" data-label="Control Actions" style="min-width: 220px !important; white-space: nowrap !important; width: 220px !important;">
+                            <div class="table-actions-v2" style="display: flex !important; justify-content: flex-end !important; align-items: center !important; gap: 1.5rem !important; flex-wrap: nowrap !important;">
+                                <button class="btn-premium-view" style="flex-shrink: 0 !important;" onclick='viewInstructor(<?php echo json_encode($i); ?>)'>
                                     <i class="fas fa-eye"></i> View
                                 </button>
-                                <button class="btn-premium-edit" onclick='editInstructor(<?php echo json_encode($i); ?>)'>
+                                <button class="btn-premium-edit" style="flex-shrink: 0 !important;" onclick='editInstructor(<?php echo json_encode($i); ?>)'>
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this instructor?')">
+                                <form method="POST" style="display: contents !important;" onsubmit="return confirm('Are you sure you want to delete this instructor?')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="instructor_id" value="<?php echo $i['instructor_id']; ?>">
-                                    <button type="submit" class="btn-premium-delete">
+                                    <button type="submit" class="btn-premium-delete" style="flex-shrink: 0 !important; width: 38px !important; height: 38px !important;">
                                         <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
@@ -340,138 +239,254 @@ endwhile; ?>
     </div>
 </div>
 
-<div class="modal fade" id="addModal">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST" autocomplete="off">
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off" class="w-100">
                 <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5>Add Instructor</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Register Instructor</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="alert alert-info py-2">
-                        <small><i class="fas fa-info-circle"></i> Login Credentials will be generated automatically: <b>Username = ID</b> and <b>Password = Birthday (MM/DD/YYYY)</b>.</small>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info py-2 mb-4 d-flex align-items-center gap-3 shadow-sm border-0" style="border-radius: 1rem; background: rgba(37, 99, 235, 0.05);">
+                        <i class="fas fa-info-circle fa-2x text-primary"></i>
+                        <small class="text-dark">Login Credentials will be generated automatically: <b>Username = ID</b> and <b>Password = Birthday (YYYYMMDD)</b>.</small>
                     </div>
-                    <div class="mb-3">
-                        <label>Birth Date</label>
-                        <input type="date" name="date_of_birth" class="form-control" required>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>First Name</label>
-                            <input type="text" name="first_name" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Last Name</label>
-                            <input type="text" name="last_name" class="form-control" required>
-                        </div>
+
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-address-card me-2"></i>Personal Details</span>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Middle Name</label>
-                            <input type="text" name="middle_name" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>First Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="first_name" class="form-control" placeholder="Given Name" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                        <label class="form-label">Diploma Program</label>
-                        <select name="dept_id" class="form-select" required>
-                            <option value="">-- Select Diploma Program --</option>
-                            <?php foreach ($departments_list as $d): ?>
-                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    </div>
-                    <div class="mb-3">
-                        <label>Specialization</label>
-                        <input type="text" name="specialization" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Middle Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="middle_name" class="form-control" placeholder="Optional">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Last Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="last_name" class="form-control" placeholder="Surname" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Contact Number</label>
-                            <input type="text" name="contact_number" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Date of Birth</label>
+                                <div class="input-wrapper">
+                                    <input type="date" name="date_of_birth" class="form-control" required>
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Email Address</label>
-                            <input type="email" name="email" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Contact Number</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="contact_number" class="form-control" placeholder="09XX-XXX-XXXX">
+                                    <i class="fas fa-phone-alt"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Email Address</label>
+                                <div class="input-wrapper">
+                                    <input type="email" name="email" class="form-control" placeholder="instructor@example.com">
+                                    <i class="fas fa-envelope"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-chalkboard-teacher me-2"></i>Academic Assignment</span>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <select name="dept_id" class="form-select" required>
+                                        <option value="">-- Select Diploma Program --</option>
+                                        <?php foreach ($departments_list as $d): ?>
+                                            <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>Specialization</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="specialization" class="form-control" placeholder="e.g. Database Systems">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-check-circle me-2"></i>Register Instructor</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="editModal">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST" autocomplete="off">
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <form method="POST" autocomplete="off" class="w-100">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="instructor_id" id="edit_instructor_id">
-            <div class="modal-content">
-                <div class="modal-header"><h5>Edit Instructor Profile</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <div class="mb-3"><label>Instructor ID</label><input type="text" name="instructor_id_no" id="edit_instructor_id_no" class="form-control" required></div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>First Name</label>
-                            <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Last Name</label>
-                            <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
-                        </div>
+            <div class="modal-content border-0">
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Edit Instructor Profile</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-address-card me-2"></i>Personal Details</span>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Middle Name</label>
-                            <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>First Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Birth Date</label>
-                            <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Middle Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Last Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="mb-3">
-                        <label class="form-label">Diploma Program</label>
-                        <select name="dept_id" id="edit_dept_id" class="form-select" required>
-                            <option value="">-- Select Diploma Program --</option>
-                            <?php foreach ($departments_list as $d): ?>
-                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Specialization</label>
-                            <input type="text" name="specialization" id="edit_specialization" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Date of Birth</label>
+                                <div class="input-wrapper">
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                            </div>
                         </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Contact Number</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
+                                    <i class="fas fa-phone-alt"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Email Address</label>
+                                <div class="input-wrapper">
+                                    <input type="email" name="email" id="edit_email" class="form-control">
+                                    <i class="fas fa-envelope"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-chalkboard-teacher me-2"></i>Professional Info</span>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Contact Number</label>
-                            <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Instructor ID</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="instructor_id_no" id="edit_instructor_id_no" class="form-control" required>
+                                    <i class="fas fa-id-card"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Email</label>
-                            <input type="email" name="email" id="edit_email" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <select name="dept_id" id="edit_dept_id" class="form-select" required>
+                                        <option value="">-- Select Diploma Program --</option>
+                                        <?php foreach ($departments_list as $d): ?>
+                                            <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="mb-3"><label>Status</label>
-                        <select name="status" id="edit_status" class="form-select" required>
-                            <option value="active">Active</option><option value="inactive">Inactive</option>
-                        </select>
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Specialization</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="specialization" id="edit_specialization" class="form-control">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="premium-input-group">
+                                <label>Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select" required>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Profile</button>
-                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-sync me-2"></i>Update Profile</button>
+                </div>
             </div>
         </form>
     </div>
@@ -483,7 +498,7 @@ endforeach; ?>
 <div class="modal fade" id="viewModal">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content border-0 shadow-lg rounded-4">
-            <div class="modal-header bg-dark-navy text-white py-3 px-4 border-0 rounded-top-4">
+            <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
                 <div class="d-flex align-items-center">
                     <div class="bg-white bg-opacity-10 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
                         <i class="fas fa-id-card text-info"></i>

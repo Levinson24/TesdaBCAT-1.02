@@ -10,9 +10,9 @@ INSERT INTO users (username, password, role, status) VALUES
 ('instructor1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'instructor', 'active'),
 ('instructor2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'instructor', 'active');
 
-INSERT INTO instructors (user_id, first_name, last_name, middle_name, department, specialization, email) VALUES
-((SELECT user_id FROM users WHERE username = 'instructor1'), 'Juan', 'Dela Cruz', 'Santos', 'General Education', 'Mathematics', 'juan.delacruz@tesda-bcat.edu.ph'),
-((SELECT user_id FROM users WHERE username = 'instructor2'), 'Maria', 'Garcia', 'Lopez', 'Technical', 'Computer Programming', 'maria.garcia@tesda-bcat.edu.ph');
+INSERT INTO instructors (user_id, first_name, last_name, middle_name, dept_id, specialization, email) VALUES
+((SELECT user_id FROM users WHERE username = 'instructor1'), 'Juan', 'Dela Cruz', 'Santos', 1, 'Mathematics', 'juan.delacruz@tesda-bcat.edu.ph'),
+((SELECT user_id FROM users WHERE username = 'instructor2'), 'Maria', 'Garcia', 'Lopez', 1, 'Computer Programming', 'maria.garcia@tesda-bcat.edu.ph');
 
 -- Sample Registrar
 INSERT INTO users (username, password, role, status) VALUES
@@ -24,10 +24,10 @@ INSERT INTO users (username, password, role, status) VALUES
 ('student2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'active'),
 ('student3', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'student', 'active');
 
-INSERT INTO students (user_id, student_no, first_name, last_name, middle_name, date_of_birth, gender, address, contact_number, email, course, year_level, enrollment_date) VALUES
-((SELECT user_id FROM users WHERE username = 'student1'), '2024-001', 'Trisha', 'Calagos', 'A.', '2003-07-08', 'Female', 'Magallanes St., Sabang 2, Allen, Northern Samar', '09123456789', 'trisha.calagos@email.com', 'Automotive Servicing NC I', 1, '2024-08-15'),
-((SELECT user_id FROM users WHERE username = 'student2'), '2024-002', 'Pedro', 'Reyes', 'B.', '2003-05-15', 'Male', 'Poblacion, Allen, Northern Samar', '09234567890', 'pedro.reyes@email.com', 'Computer Programming', 1, '2024-08-15'),
-((SELECT user_id FROM users WHERE username = 'student3'), '2024-003', 'Ana', 'Santos', 'C.', '2003-09-20', 'Female', 'San Isidro, Allen, Northern Samar', '09345678901', 'ana.santos@email.com', 'Automotive Servicing NC I', 1, '2024-08-15');
+INSERT INTO students (user_id, student_no, first_name, last_name, middle_name, date_of_birth, gender, address, contact_number, email, program_id, year_level, enrollment_date) VALUES
+((SELECT user_id FROM users WHERE username = 'student1'), '2024-001', 'Trisha', 'Calagos', 'A.', '2003-07-08', 'Female', 'Magallanes St., Sabang 2, Allen, Northern Samar', '09123456789', 'trisha.calagos@email.com', 1, 1, '2024-08-15'),
+((SELECT user_id FROM users WHERE username = 'student2'), '2024-002', 'Pedro', 'Reyes', 'B.', '2003-05-15', 'Male', 'Poblacion, Allen, Northern Samar', '09234567890', 'pedro.reyes@email.com', 1, 1, '2024-08-15'),
+((SELECT user_id FROM users WHERE username = 'student3'), '2024-003', 'Ana', 'Santos', 'C.', '2003-09-20', 'Female', 'San Isidro, Allen, Northern Samar', '09345678901', 'ana.santos@email.com', 1, 1, '2024-08-15');
 
 -- Sample Courses
 INSERT INTO courses (course_code, course_name, description, units, status) VALUES

@@ -27,7 +27,8 @@ $pageTitle = 'Diploma Program Grade Oversight';
 require_once '../includes/header.php';
 
 // Fetch grades for courses in this department
-$grades = $conn->prepare("
+// Fetches all grades for the department using the safety mapping
+$grades = getDepartmentGradesQuery($deptId);("
     SELECT g.*, s.student_no, s.first_name, s.last_name, c.course_code, c.course_name, i.first_name as inst_first, i.last_name as inst_last
     FROM grades g
     JOIN students s ON g.student_id = s.student_id
@@ -38,9 +39,7 @@ $grades = $conn->prepare("
     WHERE c.dept_id = ?
     ORDER BY g.submitted_at DESC
 ");
-$grades->bind_param("i", $deptId);
-$grades->execute();
-$result = $grades->get_result();
+
 
 ?>
 
@@ -63,7 +62,7 @@ $result = $grades->get_result();
                     </tr>
                 </thead>
                 <tbody>
-                    <?php while ($g = $result->fetch_assoc()): ?>
+                    <?php while ($g = $grades->fetch_assoc()): ?>
                     <tr>
                         <td>
                             <b><?php echo htmlspecialchars($g['last_name'] . ', ' . $g['first_name']); ?></b><br>

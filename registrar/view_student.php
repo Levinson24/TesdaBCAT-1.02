@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['assign_honor'])) {
 
 // Fetch student details - Full access for registrar
 $stmt = $conn->prepare("
-    SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
+    SELECT s.*, u.username, u.profile_image, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
     FROM students s
     JOIN users u ON s.user_id = u.user_id
     LEFT JOIN departments d ON s.dept_id = d.dept_id
@@ -85,7 +85,8 @@ $enrollmentsStmt = $conn->prepare("
            CONCAT(i.first_name, ' ', i.last_name) as instructor_name
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     WHERE e.student_id = ?
     ORDER BY cs.school_year DESC, cs.semester DESC
@@ -113,12 +114,16 @@ require_once '../includes/header.php';
 
 <div class="row">
     <!-- Left Column: Profile Card -->
-    <div class="col-lg-4">
+    <div class="col-12 col-lg-4">
         <div class="card premium-card border-0 mb-4 shadow-sm">
             <div class="card-body text-center p-4">
                 <div class="mb-3">
-                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
-                        <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center overflow-hidden" style="width: 100px; height: 100px;">
+                        <?php if (!empty($student['profile_image'])): ?>
+                            <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($student['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <h4 class="mb-1 fw-bold"><?php echo htmlspecialchars(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')); ?></h4>
@@ -154,13 +159,13 @@ require_once '../includes/header.php';
                     <a href="../dept_head/manage_student_schedule.php?student_id=<?php echo $studentId; ?>" class="btn btn-dark rounded-pill shadow-sm">
                         <i class="fas fa-calendar-check me-2"></i> Manage Enrollment
                     </a>
-                    <a href="curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn btn-primary rounded-pill shadow-sm" target="_blank">
+                    <a href="curriculum_evaluation.php?id=<?php echo $studentId; ?>" class="btn-premium-print w-100 rounded-pill py-2 text-decoration-none shadow-sm" style="height: auto;" target="_blank">
                         <i class="fas fa-file-invoice me-2"></i> Official Evaluation
                     </a>
-                    <a href="print_grade_slip.php?student_id=<?php echo $studentId; ?>" class="btn btn-outline-primary rounded-pill shadow-sm bg-white" target="_blank">
+                    <a href="print_grade_slip.php?student_id=<?php echo $studentId; ?>" class="btn-premium-print w-100 rounded-pill py-2 text-decoration-none shadow-sm mt-1" style="height: auto; background-color: #fff; border: 1px solid #e2e8f0;" target="_blank">
                         <i class="fas fa-receipt me-2"></i> Print Grade Slip
                     </a>
-                    <a href="transcript_print.php?student_id=<?php echo $studentId; ?>" class="btn btn-outline-info rounded-pill shadow-sm bg-white" target="_blank">
+                    <a href="transcript_print.php?student_id=<?php echo $studentId; ?>" class="btn-premium-view w-100 rounded-pill py-2 text-decoration-none shadow-sm mt-1" style="height: auto;" target="_blank">
                         <i class="fas fa-print me-2"></i> Print Transcript
                     </a>
                 </div>
@@ -198,10 +203,10 @@ require_once '../includes/header.php';
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="gradient-navy text-white">
+                    <table class="table table-hover align-middle mb-0 premium-table">
+                        <thead>
                             <tr>
-                                <th class="ps-4 border-0 small fw-bold text-uppercase text-warning">Subject / Code</th>
+                                <th class="ps-4 border-0 small fw-bold text-uppercase">Subject / Code</th>
                                 <th class="border-0 small fw-bold text-uppercase">Section / Room</th>
                                 <th class="border-0 small fw-bold text-uppercase text-end pe-4">Assigned Prof</th>
                             </tr>
@@ -272,7 +277,7 @@ endif; ?>
 <div class="modal fade" id="assignHonorModal" tabindex="-1" aria-labelledby="assignHonorModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
-            <div class="modal-header gradient-navy text-white border-0 py-3">
+            <div class="modal-header modal-premium-header gradient-navy">
                 <h5 class="modal-title fw-bold" id="assignHonorModalLabel"><i class="fas fa-award me-2 text-warning"></i> Assign Academic Honor</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
@@ -286,9 +291,10 @@ endif; ?>
                     </div>
                     <?php endif; ?>
                     
-                    <div class="mb-3">
-                        <label for="academic_honor" class="form-label fw-bold small text-muted text-uppercase">Select Honor</label>
-                        <select class="form-select" id="academic_honor" name="academic_honor" required>
+                    <div class="premium-input-group">
+                        <label for="academic_honor" class="form-label mb-2">Select Honor</label>
+                        <div class="input-wrapper">
+                            <select class="form-select" id="academic_honor" name="academic_honor" required>
                             <option value="None" <?php echo empty($student['academic_honor']) ? 'selected' : ''; ?>>None (Remove Honor)</option>
                             <option value="Summa Cum Laude" <?php echo ($student['academic_honor'] ?? '') === 'Summa Cum Laude' ? 'selected' : ''; ?>>Summa Cum Laude</option>
                             <option value="Magna Cum Laude" <?php echo ($student['academic_honor'] ?? '') === 'Magna Cum Laude' ? 'selected' : ''; ?>>Magna Cum Laude</option>
@@ -297,7 +303,9 @@ endif; ?>
                             <option value="With Honors" <?php echo ($student['academic_honor'] ?? '') === 'With Honors' ? 'selected' : ''; ?>>With Honors</option>
                             <option value="With High Honors" <?php echo ($student['academic_honor'] ?? '') === 'With High Honors' ? 'selected' : ''; ?>>With High Honors</option>
                             <option value="With Highest Honors" <?php echo ($student['academic_honor'] ?? '') === 'With Highest Honors' ? 'selected' : ''; ?>>With Highest Honors</option>
-                        </select>
+                            </select>
+                            <i class="fas fa-medal"></i>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

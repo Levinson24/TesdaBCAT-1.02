@@ -20,21 +20,23 @@ $filename   = "tesda_db_backup_{$timestamp}.sql";
 $filepath   = $backupDir . $filename;
 
 // Build mysqldump command
-$host     = DB_HOST;
+$hostFull = DB_HOST; // e.g., "localhost:3307"
+$hostParts = explode(':', $hostFull);
+$host = $hostParts[0];
+$port = isset($hostParts[1]) ? $hostParts[1] : '3306';
+
 $user     = DB_USER;
 $pass     = DB_PASS;
 $dbname   = DB_NAME;
 
-// Use mysqldump (available in XAMPP)
-$cmd = "mysqldump --host={$host} --user={$host} --password={$pass} {$dbname} > \"{$filepath}\" 2>&1";
 // Safer: use full path for XAMPP
 $mysqlDump = 'C:\\xampp\\mysql\\bin\\mysqldump.exe';
 if (file_exists($mysqlDump)) {
-    $cmd = "\"{$mysqlDump}\" --host={$host} --user={$user} " .
+    $cmd = "\"{$mysqlDump}\" --host={$host} --port={$port} --user={$user} " .
            ($pass !== '' ? "--password={$pass} " : '') .
            "{$dbname} > \"{$filepath}\" 2>&1";
 } else {
-    $cmd = "mysqldump --host={$host} --user={$user} " .
+    $cmd = "mysqldump --host={$host} --port={$port} --user={$user} " .
            ($pass !== '' ? "--password={$pass} " : '') .
            "{$dbname} > \"{$filepath}\" 2>&1";
 }

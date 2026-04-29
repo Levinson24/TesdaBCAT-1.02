@@ -87,7 +87,8 @@ $gradesStmt = $conn->prepare("
            CONCAT(i.first_name, ' ', i.last_name) AS instructor_name
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     WHERE e.student_id = ? AND cs.school_year = ? AND cs.semester = ? AND e.status = 'enrolled'
@@ -160,16 +161,16 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grade Slip - <?php echo htmlspecialchars($student['last_name']); ?></title>
+    <title>Grade Slip - <?php echo htmlspecialchars($student['last_name']); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         @page {
             size: landscape; /* Excel sheets with many columns are often landscape */
             margin: 0.5in;
         }
         body {
-            font-family: 'Calibri', 'Segoe UI', Tahoma, Arial, sans-serif;
+            font-family: 'Outfit', sans-serif !important;
             font-size: 11pt;
             color: #000;
             margin: 0;
@@ -242,7 +243,7 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
             align-items: center;
             margin-bottom: 25px;
             padding-bottom: 15px;
-            border-bottom: 2px solid #1a4d8c;
+            border-bottom: 2px solid #0038A8;
         }
         .header-inner {
             display: flex;
@@ -276,9 +277,9 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
         
         .header-school {
             font-weight: 900;
-            font-family: 'Arial Black', Impact, sans-serif;
+            font-family: 'Outfit', sans-serif;
             font-size: 18pt;
-            color: #1a4d8c;
+            color: #0038A8;
             letter-spacing: 1px;
             text-transform: uppercase;
             text-shadow: 1px 1px 0px rgba(0,0,0,0.1);
@@ -286,9 +287,9 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
         
         .header-address {
             font-size: 18pt;
-            font-family: 'Calibri', sans-serif;
+            font-family: 'Outfit', sans-serif;
             font-style: italic;
-            color: #1a4d8c;
+            color: #0038A8;
         }
         
         .report-header img {
@@ -303,7 +304,7 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
             text-align: center;
             font-weight: 900;
             font-size: 15pt;
-            color: #1a4d8c;
+            color: #0038A8;
             margin-bottom: 25px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -359,7 +360,7 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
         }
         
         .btn-print {
-            background-color: #1a4d8c;
+            background-color: #0038A8;
             color: white;
             padding: 10px 20px;
             border: none;
@@ -392,16 +393,16 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
         }
         .sig-line {
             width: 250px;
-            border-bottom: 1px solid #000;
+            border-bottom: 2px solid #0038A8;
             margin-bottom: 5px;
             font-size: 11pt;
             font-weight: bold;
-            font-family: Arial, sans-serif;
+            font-family: 'Outfit', sans-serif;
             text-transform: uppercase;
         }
         .sig-title {
             font-size: 10pt;
-            font-family: Arial, sans-serif;
+            font-family: 'Outfit', sans-serif;
             color: #333;
         }
     </style>
@@ -525,11 +526,14 @@ $semStr = strtoupper($targetSemester) . " SEMESTER";
                 <!-- Show grade if it exists, otherwise leave blank -->
                 <td style="font-weight: bold;">
                     <?php
-    if (!empty($c['remarks']) && !is_numeric($c['grade'])) {
+    if (!empty($c['remarks'])) {
         echo htmlspecialchars($c['remarks']);
     }
+    elseif ($c['grade'] !== null) {
+        echo rtrim(rtrim(number_format($c['grade'], 2), '0'), '.') ?: '0';
+    }
     else {
-        echo rtrim(rtrim(number_format($c['grade'], 2), '0'), '.') ?: '';
+        echo '—';
     }
 ?>
                 </td>

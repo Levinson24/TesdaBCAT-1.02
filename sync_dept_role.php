@@ -44,11 +44,16 @@ while ($row = $res->fetch_assoc()) {
 
 foreach (['students', 'instructors'] as $table) {
     echo "- Syncing $table department data...\n";
-    foreach ($dept_map as $name => $id) {
-        $stmt = $conn->prepare("UPDATE $table SET dept_id = ? WHERE department = ?");
-        $stmt->bind_param("is", $id, $name);
-        $stmt->execute();
-        echo "  - Map '$name' -> ID $id (" . $stmt->affected_rows . " rows)\n";
+    $departmentColumn = $conn->query("SHOW COLUMNS FROM $table LIKE 'department'");
+    if ($departmentColumn && $departmentColumn->num_rows > 0) {
+        foreach ($dept_map as $name => $id) {
+            $stmt = $conn->prepare("UPDATE $table SET dept_id = ? WHERE department = ?");
+            $stmt->bind_param("is", $id, $name);
+            $stmt->execute();
+            echo "  - Map '$name' -> ID $id (" . $stmt->affected_rows . " rows)\n";
+        }
+    } else {
+        echo "- Skipping department sync for $table because column 'department' does not exist.\n";
     }
 }
 

@@ -122,45 +122,10 @@ require_once '../includes/header.php';
         padding: 4rem;
         background: #fff;
     }
-    .form-group-custom {
-        margin-bottom: 2.5rem;
-    }
-    .form-label-custom {
-        font-weight: 700;
-        color: var(--text-muted);
+    .form-text-custom {
         font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-bottom: 0.75rem;
-        display: block;
-    }
-    .input-group-custom {
-        position: relative;
-    }
-    .input-group-custom .fas {
-        position: absolute;
-        left: 1.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--primary-indigo);
-        z-index: 10;
-        opacity: 0.7;
-        font-size: 1.1rem;
-    }
-    .input-group-custom .form-control {
-        padding-left: 4rem;
-        height: 4rem;
-        border-radius: 1.25rem;
-        border: 2px solid #f1f5f9;
-        background-color: #f8fafc;
-        font-size: 1.05rem;
-        font-weight: 500;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .input-group-custom .form-control:focus {
-        background-color: #fff;
-        border-color: var(--primary-indigo);
-        box-shadow: 0 10px 25px rgba(26, 58, 92, 0.12);
+        color: #64748b;
+        margin-top: 0.5rem;
     }
     .badge-status {
         font-size: 0.85rem;
@@ -171,18 +136,34 @@ require_once '../includes/header.php';
         border: 1px solid rgba(255,255,255,0.2);
         backdrop-filter: blur(5px);
     }
-    .btn-save {
-        border-radius: 1.25rem;
-        padding: 1rem 3rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
+    .btn-create-profile {
+        background: linear-gradient(135deg, #0038A8 0%, #002366 100%);
+        color: white;
+        border: none;
+        border-radius: 50px;
+        padding: 0.8rem 2.5rem;
+        font-weight: 600;
+        font-size: 1rem;
+        letter-spacing: 0.5px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         text-transform: uppercase;
-        font-size: 0.9rem;
-        box-shadow: 0 10px 25px rgba(26, 58, 92, 0.35);
-        transition: all 0.3s;
+        box-shadow: 0 4px 15px rgba(0, 56, 168, 0.2);
     }
-    .btn-save:hover {
-        box-shadow: 0 15px 35px rgba(26, 58, 92, 0.45);
+    .btn-create-profile:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 56, 168, 0.3);
+        color: white;
+    }
+    
+    .premium-input-group input {
+        height: 3.5rem;
+        padding-left: 3rem;
+        border-radius: 1rem;
+        font-size: 1rem;
+    }
+    .premium-input-group i {
+        left: 1.2rem;
+        font-size: 1.1rem;
     }
 </style>
 
@@ -264,36 +245,49 @@ require_once '../includes/header.php';
                         
                         <form method="POST">
                             <?php csrfField(); ?>
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Account Username</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-user-shield"></i>
-                                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" disabled style="cursor: not-allowed; opacity: 0.7;">
-                                </div>
-                                <div class="form-text mt-2 ps-2"><i class="fas fa-lock me-1"></i> System-level username cannot be altered.</div>
-                            </div>
                             
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Primary Email</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-envelope-open-text"></i>
-                                    <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required placeholder="your.name@example.com">
+                            <div class="row">
+                                <div class="col-md-12 mb-4">
+                                    <div class="premium-input-group">
+                                        <label>Account Username</label>
+                                        <div class="input-wrapper">
+                                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" disabled style="cursor: not-allowed; opacity: 0.7; background: #e2e8f0;">
+                                            <i class="fas fa-user-shield"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-text-custom ps-2"><i class="fas fa-lock me-1"></i> System-level username cannot be altered.</div>
                                 </div>
                             </div>
 
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Security (New Password)</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-key"></i>
-                                    <input type="password" name="password" class="form-control" placeholder="••••••••••••••">
-                                </div>
-                                <div class="form-text mt-2 ps-2 text-primary fw-medium">
-                                    <i class="fas fa-info-circle me-1"></i> Only enter a value if you wish to reset your current password.
+                            <div class="row">
+                                <div class="col-md-12 mb-4">
+                                    <div class="premium-input-group">
+                                        <label>Primary Email</label>
+                                        <div class="input-wrapper">
+                                            <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required placeholder="your.name@example.com">
+                                            <i class="fas fa-envelope-open-text"></i>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="mt-5 pt-2">
-                                <button type="submit" name="update_profile" class="btn btn-primary btn-lg btn-save">
+                            <div class="row">
+                                <div class="col-md-12 mb-4">
+                                    <div class="premium-input-group">
+                                        <label>Security (New Password)</label>
+                                        <div class="input-wrapper">
+                                            <input type="password" name="password" class="form-control" placeholder="••••••••••••••">
+                                            <i class="fas fa-key"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-text-custom ps-2 text-primary fw-medium">
+                                        <i class="fas fa-info-circle me-1"></i> Only enter a value if you wish to reset your current password.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 pt-2">
+                                <button type="submit" name="update_profile" class="btn btn-create-profile">
                                     <i class="fas fa-check-double me-2"></i> Synchronize Profile
                                 </button>
                             </div>

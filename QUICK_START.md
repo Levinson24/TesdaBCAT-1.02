@@ -27,7 +27,7 @@
    - Open browser: http://localhost/TesdaBCAT-1.02
    - Login with:
      - Username: `admin`
-     - Password: `admin123`
+     - Password: `password`
 
 #### Step 3: First Steps
 1. Change admin password

@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
             
-            $stmt = $conn->prepare("INSERT INTO users (username, password, role, status, dept_id, profile_image) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssis", $username, $password, $role, $status, $deptId, $profileImage);
+            $stmt = $conn->prepare("INSERT INTO users (username, password, role, status, dept_id, email, profile_image) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("sssisss", $username, $password, $role, $status, $deptId, $email, $profileImage);
 
             if ($stmt->execute()) {
                 $userId = $stmt->insert_id;
@@ -199,106 +199,260 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// === STEP 3: Fetch data ===
+// === THE PERMANENT FIX FOR LINE 203 ===
 $users = $conn->query("
-    SELECT u.*, 
-           CASE 
-               WHEN u.role = 'student' THEN COALESCE(CONCAT(s.first_name, ' ', s.last_name), u.username)
-               WHEN u.role = 'instructor' THEN COALESCE(CONCAT(i.first_name, ' ', i.last_name), u.username)
-               ELSE u.username
-           END as display_name,
-           d.title_diploma_program as dept_name,
-           s.program_id,
-           (SELECT al.action FROM audit_logs al 
-            WHERE al.user_id = u.user_id 
-            AND (al.action LIKE 'PRINT_%' OR al.action LIKE 'DOWNLOAD_%' OR al.action = 'VIEW_COR')
-            ORDER BY al.log_id DESC LIMIT 1) as last_doc_action,
-           (SELECT al.created_at FROM audit_logs al 
-            WHERE al.user_id = u.user_id 
-            AND (al.action LIKE 'PRINT_%' OR al.action LIKE 'DOWNLOAD_%' OR al.action = 'VIEW_COR')
-            ORDER BY al.log_id DESC LIMIT 1) as last_doc_time
+    SELECT 
+        u.*, 
+        CASE 
+            WHEN u.role = 'student' THEN CONCAT(COALESCE(s.first_name, ''), ' ', COALESCE(s.last_name, ''))
+            WHEN u.role = 'instructor' THEN CONCAT(COALESCE(i.first_name, ''), ' ', COALESCE(i.last_name, ''))
+            ELSE u.username
+        END as display_name,
+        d.title_diploma_program as dept_name
     FROM users u
     LEFT JOIN students s ON u.user_id = s.user_id
     LEFT JOIN instructors i ON u.user_id = i.user_id
     LEFT JOIN departments d ON u.dept_id = d.dept_id
     ORDER BY u.created_at DESC
-    LIMIT 500
 ");
+if (!$users) {
+    $error = 'Database query error: ' . $conn->error;
+}
+
+
 
 // === STEP 4: NOW output HTML ===
 $pageTitle = 'Manage Users';
 require_once '../includes/header.php';
 ?>
-<style>
-    .premium-card {
-        border-radius: 1rem;
-    }
-    .bg-dark-navy {
-        background-color: #0f172a !important;
-    }
-    @keyframes pulse-red {
-        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
-        70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(220, 53, 64, 0); }
-        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-    }
-    .pulse-badge {
-        animation: pulse-red 2s infinite;
-    }
-    .users-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.7rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
-    }
-    /* Premium Action Buttons */
-    .btn-premium-edit {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155 !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    .btn-premium-edit:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
+<!-- Import Premium Typography -->
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-    .btn-premium-delete {
-        width: 36px; height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50%;
-        color: #ef4444 !important;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        border: none;
-        cursor: pointer;
-    }
-    .btn-premium-delete:hover {
-        background-color: #fef2f2;
-        border-color: #fecaca;
-        color: #dc2626 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-    }
-</style>
+<!-- Add User Modal (Moved to top for reliability) -->
+<div class="modal fade" id="addUserModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off" enctype="multipart/form-data">
+                <?php csrfField(); ?>
+                <input type="hidden" name="action" value="create">
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title" id="addModalTitle">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Register Student</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <!-- SECTION: ROLE SELECTION (ALWAYS VISIBLE) -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="premium-input-group mb-0">
+                                <label for="add_role">System Role / Designation</label>
+                                <div class="input-wrapper">
+                                    <select name="role" id="add_role" class="form-select" required onchange="toggleAddFields()">
+                                        <option value="student">Student</option>
+                                        <option value="instructor">Instructor</option>
+                                        <option value="registrar">Head Registrar</option>
+                                        <option value="registrar_staff">Clerk</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="dept_head">Diploma Program Head</option>
+                                    </select>
+                                    <i class="fas fa-user-tag"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="premium-input-group mb-0">
+                                <label for="add_status">Account Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="add_status" class="form-select" required>
+                                        <option value="active" selected>Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- DYNAMIC ALERT BOX -->
+                    <div id="add_global_access_alert" class="login-details-alert bg-primary bg-opacity-10 border-primary border-opacity-25 text-primary mb-3" style="display:none;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <div id="alert_text">
+                            Login Credentials will be generated automatically: <strong>Username = ID</strong> and <strong>Password = Birthday (MM/DD/YYYY)</strong>.
+                        </div>
+                    </div>
+
+                    <!-- SECTION: MANUAL CREDENTIALS (FOR ADMIN/REGISTRAR) -->
+                    <div id="standard_creds" style="display:none;">
+                        <div class="form-section-divider">
+                            <span><i class="fas fa-key me-2"></i>Access Credentials</span>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="premium-input-group">
+                                    <label for="add_username">Custom Username</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="username" id="add_username" class="form-control" placeholder="Enter username">
+                                        <i class="fas fa-at"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="premium-input-group">
+                                    <label for="add_password">Initial Password</label>
+                                    <div class="input-wrapper">
+                                        <input type="password" name="password" id="add_password" class="form-control" placeholder="••••••••">
+                                        <i class="fas fa-lock"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: PERSONAL DETAILS -->
+                    <div id="profile_name_fields">
+                        <div class="form-section-divider">
+                            <span><i class="fas fa-user me-2"></i>PERSONAL DETAILS</span>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_first_name">FIRST NAME</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="first_name" id="add_first_name" class="form-control" placeholder="Given Name">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_middle_name">MIDDLE NAME</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="middle_name" id="add_middle_name" class="form-control" placeholder="Optional">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_last_name">LAST NAME</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="last_name" id="add_last_name" class="form-control" placeholder="Surname">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_dob">DATE OF BIRTH</label>
+                                    <div class="input-wrapper">
+                                        <input type="date" name="date_of_birth" id="add_dob" class="form-control" required>
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_contact">CONTACT NUMBER</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="contact_number" id="add_contact" class="form-control" placeholder="09XX-XXX-XXXX">
+                                        <i class="fas fa-phone"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="premium-input-group">
+                                    <label for="add_email">EMAIL ADDRESS</label>
+                                    <div class="input-wrapper">
+                                        <input type="email" name="email" id="add_email" class="form-control" placeholder="instructor@example.com">
+                                        <i class="fas fa-envelope"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: ACADEMIC ASSIGNMENT -->
+                    <div id="academic_section">
+                        <div class="form-section-divider">
+                            <span><i class="fas fa-graduation-cap me-2"></i>ACADEMIC ASSIGNMENT</span>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6" id="dept_selector">
+                                <div class="premium-input-group">
+                                    <label for="add_dept_id" id="dept_label">DIPLOMA PROGRAM</label>
+                                    <div class="input-wrapper">
+                                        <select name="dept_id" id="add_dept_id" class="form-select" onchange="filterAddPrograms()">
+                                            <option value="">-- Select Diploma Program --</option>
+                                            <?php foreach ($departments_list as $d): ?>
+                                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <i class="fas fa-university"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6" id="program_selector" style="display:none;">
+                                <div class="premium-input-group">
+                                    <label for="add_program_id">SPECIFIC PROGRAM (COURSE)</label>
+                                    <div class="input-wrapper">
+                                        <select name="program_id" id="add_program_id" class="form-select">
+                                            <option value="">-- Select Program --</option>
+                                            <?php foreach ($programs_list as $p): ?>
+                                                <option value="<?php echo $p['program_id']; ?>" data-dept="<?php echo $p['dept_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        <i class="fas fa-graduation-cap"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6" id="instructor_only_fields" style="display:none;">
+                                <div class="premium-input-group">
+                                    <label for="add_specialization">SPECIALIZATION</label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="specialization" id="add_specialization" class="form-control" placeholder="e.g. Database Systems">
+                                        <i class="fas fa-cog"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECTION: PROFILE ASSETS -->
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-camera me-2"></i>PROFILE REPRESENTATION</span>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div id="add_image_preview_container" style="width: 70px; height: 70px; border-radius: 50%; overflow: hidden; background: #f1f5f9; border: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-user fa-2x text-light"></i>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="premium-input-group mb-0">
+                                <label for="add_profile_image">UPLOAD PROFILE PICTURE</label>
+                                <div class="input-wrapper">
+                                    <input type="file" name="profile_image" id="add_profile_image" class="form-control" accept="image/jpeg,image/png" onchange="previewImage(this, 'add_image_preview_container')">
+                                    <i class="fas fa-upload"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer d-flex justify-content-end gap-3">
+                    <button type="button" class="btn btn-discard px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile px-5" id="addSubmitBtn">
+                        <i class="fas fa-user-plus me-2"></i> <span>Register Student</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 
 <?php if (!empty($error)): ?>
     <?php echo showError($error); ?>
@@ -306,145 +460,122 @@ require_once '../includes/header.php';
 endif; ?>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
-        <h5 class="mb-0 text-white fw-bold ms-2">
+    <div class="card-header gradient-navy p-3 d-flex flex-wrap justify-content-between align-items-center rounded-top gap-3">
+        <h5 class="mb-0 text-white fw-bold ms-2 flex-grow-1">
             <i class="fas fa-user-shield me-2 text-info"></i> System User Registry
         </h5>
-        <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
-            <i class="fas fa-plus-circle me-1"></i> Add User
+        
+        <div class="search-box-container">
+            <div class="input-group input-group-sm rounded-pill overflow-hidden border-0 shadow-sm" style="background: rgba(255,255,255,0.15); backdrop-filter: blur(5px);">
+                <span class="input-group-text bg-transparent border-0 text-white-50 ps-3">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" id="userSearchInput" class="form-control bg-transparent border-0 text-white placeholder-light" placeholder="ID No Search or Profile Name..." onkeyup="filterUsers()" style="box-shadow: none;">
+                <span class="input-group-text bg-transparent border-0 text-white-50 pe-3" id="searchCounter" style="font-size: 0.75rem; font-weight: 600;"></span>
+            </div>
+        </div>
+
+        <button type="button" id="btnAddUser" class="btn btn-warning btn-sm rounded-pill px-4 shadow fw-bold border-0" data-bs-toggle="modal" data-bs-target="#addUserModal">
+            <i class="fas fa-plus-circle me-2"></i> Add User
         </button>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 users-table" id="usersTable">
+            <table class="table table-hover align-middle mb-0 users-table premium-table data-table" id="usersTable">
                 <thead>
                     <tr>
                         <th class="ps-4">ID</th>
                         <th>ACCOUNT IDENTITY</th>
                         <th>ROLE & DESIGNATION</th>
                         <th>STATUS & ACTIVITY</th>
-                        <th class="text-end pe-4">ACTIONS</th>
+                        <th class="text-end pe-4" style="min-width: 160px;">ACTIONS</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if ($users && $users->num_rows > 0): ?>
                     <?php while ($user = $users->fetch_assoc()): ?>
-                    <tr>
-                        <td class="ps-4" data-label="ID">
-                            <span class="text-muted small">#<?php echo htmlspecialchars($user['user_id'] ?? ''); ?></span>
+                    <tr class="table-row-premium align-middle">
+                        <td class="ps-4 py-3" data-label="ID">
+                            <span class="text-muted fw-500 small">#<?php echo htmlspecialchars($user['user_id'] ?? ''); ?></span>
                         </td>
-                        <td data-label="Account Identity">
+                        <td class="py-3" data-label="Account Identity">
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px; overflow: hidden;">
+                                <div class="avatar-premium me-3 overflow-hidden">
                                     <?php if (!empty($user['profile_image'])): ?>
                                         <img src="../uploads/profile_pics/<?php echo htmlspecialchars($user['profile_image']); ?>" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">
                                     <?php else: ?>
-                                        <i class="fas fa-user-circle fa-lg"></i>
+                                        <i class="fas fa-user"></i>
                                     <?php endif; ?>
                                 </div>
-                                <div>
-                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars($user['display_name'] ?? 'N/A'); ?></div>
-                                    <div class="text-muted" style="font-size: 0.75rem;">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
+                                <div class="d-flex flex-column">
+                                    <span class="identity-name"><?php echo htmlspecialchars($user['display_name'] ?? 'N/A'); ?></span>
+                                    <span class="identity-meta">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></span>
                                 </div>
                             </div>
                         </td>
-                        <td data-label="Role & Level">
+                        <td class="py-3" data-label="Role & Level">
                             <?php
-    $roleColors = [
-        'admin' => 'bg-danger bg-opacity-10 text-danger',
-        'registrar' => 'bg-primary bg-opacity-10 text-primary',
-        'instructor' => 'bg-info bg-opacity-10 text-info',
-        'student' => 'bg-success bg-opacity-10 text-success',
-        'dept_head' => 'bg-warning bg-opacity-10 text-warning',
-        'registrar_staff' => 'bg-indigo bg-opacity-10 text-indigo'
-    ];
-    $role = $user['role'] ?? 'student';
-    $badgeStyle = $roleColors[$role] ?? 'bg-secondary bg-opacity-10 text-secondary';
-?>
-                            <span class="badge rounded-pill <?php echo $badgeStyle; ?> px-3">
-                                <?php echo ucfirst(str_replace('_', ' ', $role)); ?>
+                                $roleColors = [
+                                    'admin' => 'bg-danger text-danger',
+                                    'registrar' => 'bg-primary text-primary',
+                                    'instructor' => 'bg-info text-info',
+                                    'student' => 'bg-success text-success',
+                                    'dept_head' => 'bg-warning text-warning',
+                                    'registrar_staff' => 'bg-indigo text-indigo'
+                                ];
+                                $role = $user['role'] ?? 'student';
+                                $badgeStyle = $roleColors[$role] ?? 'bg-secondary text-secondary';
+                            ?>
+                            <span class="badge badge-premium <?php echo $badgeStyle; ?> bg-opacity-10">
+                                <i class="fas fa-circle-nodes me-2 opacity-50"></i>
+                                <?php 
+                                    if ($role === 'registrar_staff') echo 'CLERK';
+                                    else echo strtoupper(str_replace('_', ' ', $role)); 
+                                ?>
                             </span>
-                            <?php if (!empty($user['dept_name'])): ?>
-                                <div class="mt-1 small text-muted"><i class="fas fa-building me-1"></i> <?php echo htmlspecialchars($user['dept_name']); ?></div>
-                            <?php endif; ?>
                         </td>
-                        <td data-label="Current Status/Activity">
-                            <div id="user-status-<?php echo $user['user_id']; ?>">
+                        <td class="py-3" data-label="Status & Activity">
+                            <div id="user-status-<?php echo $user['user_id']; ?>" class="d-flex flex-column gap-2">
                                 <?php 
                                     $status = $user['status'] ?? 'inactive'; 
-                                    
-                                    // Determine Online/Offline status
+                                    $lastActivity = $user['last_activity'] ?? null;
                                     $isOnline = false;
-                                    $sessionDuration = '';
-                                    
-                                    if (!empty($user['last_activity'])) {
-                                        $lastActivityTime = strtotime($user['last_activity']);
-                                        
-                                        // Consider online if active in the last 5 minutes (300 seconds)
-                                        if ((time() - $lastActivityTime) <= 300) {
-                                            $isOnline = true;
-                                            
-                                            if (!empty($user['session_start'])) {
-                                                $sessionStartTime = strtotime($user['session_start']);
-                                                // Calculate H:M:S duration
-                                                $durationSecs = time() - $sessionStartTime;
-                                                $hours = floor($durationSecs / 3600);
-                                                $minutes = floor(($durationSecs % 3600) / 60);
-                                                $seconds = $durationSecs % 60;
-                                                $sessionDuration = sprintf("%02d:%02d:%02d", $hours, $minutes, $seconds);
-                                            }
-                                        }
+                                    if (!empty($lastActivity)) {
+                                        $isOnline = (time() - strtotime($lastActivity)) <= 300;
                                     }
+                                    $pulseColor = $isOnline ? '#22c55e' : '#ef4444';
+                                    $statusLabel = $isOnline ? 'Active Online' : 'User Offline';
+                                    $labelColor = $isOnline ? '#166534' : '#b91c1c';
                                 ?>
-                                <div class="mb-1">
-                                    <span class="badge rounded-pill <?php echo $status === 'active' ? 'bg-success' : 'bg-secondary'; ?> bg-opacity-10 text-<?php echo $status === 'active' ? 'success' : 'secondary'; ?> px-2 py-1">
-                                        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Acc: <?php echo ucfirst($status); ?>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="position-relative d-flex" style="width: 10px; height: 10px;">
+                                        <?php if ($isOnline): ?>
+                                            <span class="animate-ping position-absolute h-100 w-100 rounded-circle opacity-75" style="background: <?php echo $pulseColor; ?>;"></span>
+                                        <?php endif; ?>
+                                        <span class="position-relative rounded-circle h-100 w-100" style="background: <?php echo $pulseColor; ?>; border: 1.5px solid #fff; box-shadow: 0 0 5px <?php echo $pulseColor; ?>44;"></span>
+                                    </span>
+                                    <span class="fw-800 text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em; color: <?php echo $labelColor; ?>; font-family: 'Outfit', sans-serif;">
+                                        <?php echo $statusLabel; ?>
                                     </span>
                                 </div>
-                                
-                                <?php if ($isOnline): ?>
-                                    <span class="badge bg-success rounded-pill px-2 py-1 shadow-sm">
-                                        <i class="fas fa-signal me-1"></i> Online (<?php echo $sessionDuration; ?>)
+                                <div class="d-flex flex-wrap gap-2 align-items-center">
+                                    <span class="badge border border-<?php echo $status === 'active' ? 'success' : 'secondary'; ?> border-opacity-25 bg-<?php echo $status === 'active' ? 'success' : 'secondary'; ?> bg-opacity-10 text-<?php echo $status === 'active' ? 'success' : 'secondary'; ?> rounded-1 py-1 px-2" style="font-size: 0.6rem; font-weight: 700;">
+                                        <i class="fas fa-shield-halved me-1 opacity-75"></i> <?php echo strtoupper($status); ?>
                                     </span>
-                                <?php else: ?>
-                                    <span class="badge bg-light text-muted border border-secondary border-opacity-25 rounded-pill px-2 py-1">
-                                        <i class="fas fa-bed me-1"></i> Offline
-                                    </span>
-                                    <div class="mt-1 small text-muted" style="font-size: 0.70rem;">
-                                        <?php echo !empty($user['last_login']) ? date('M d, Y h:i A', strtotime($user['last_login'])) : 'Never logged in'; ?>
-                                    </div>
-                                <?php endif; ?>
-                                <div class="mt-1 text-muted" style="font-size: 0.65rem;">
-                                    <i class="fas fa-desktop me-1"></i> IP: <?php echo htmlspecialchars($user['last_ip'] ?? 'N/A'); ?>
-                                </div>
-                                <?php if (!empty($user['reset_requested'])): ?>
-                                    <div class="mb-2 text-start">
-                                        <span class="badge bg-danger pulse-badge rounded-pill px-2 py-1 shadow-sm" style="font-size: 0.65rem;">
-                                            <i class="fas fa-exclamation-triangle me-1"></i> RESET REQUESTED
+                                    <?php if (!empty($user['reset_requested'])): ?>
+                                        <span class="badge border border-danger border-opacity-25 bg-danger bg-opacity-10 text-danger rounded-1 py-1 px-2" style="font-size: 0.6rem; font-weight: 700;">
+                                            <i class="fas fa-key me-1"></i> RESET REQ.
                                         </span>
-                                    </div>
-                                <?php endif; ?>
-                                <div class="mt-1 text-primary" style="font-size: 0.65rem; font-weight: 500;">
-                                    <i class="fas fa-file-alt me-1"></i> Doc: 
-                                    <span class="doc-activity">
-                                        <?php 
-                                            if ($user['last_doc_action']) {
-                                                $action = str_replace('_', ' ', $user['last_doc_action']);
-                                                $time = strtotime($user['last_doc_time']);
-                                                $diff = time() - $time;
-                                                if ($diff < 60) echo $action . ' just now';
-                                                elseif ($diff < 3600) echo $action . ' ' . floor($diff/60) . 'm ago';
-                                                elseif ($diff < 86400) echo $action . ' ' . floor($diff/3600) . 'h ago';
-                                                else echo $action . ' on ' . date('M d', $time);
-                                            } else {
-                                                echo 'No activity';
-                                            }
-                                        ?>
-                                    </span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="text-muted d-flex flex-column gap-1" style="font-size: 0.65rem;">
+                                    <div class="d-flex align-items-center"><i class="far fa-clock me-2 opacity-50"></i><?php echo !empty($lastActivity) ? timeAgo($lastActivity) : 'Long time'; ?></div>
+                                    <div class="d-flex align-items-center"><i class="fas fa-network-wired me-2 opacity-50"></i>IP: <span class="ms-1 font-monospace"><?php echo htmlspecialchars($user['last_ip'] ?? '---'); ?></span></div>
                                 </div>
                             </div>
                         </td>
-                        <td class="text-end pe-4" data-label="Control Actions">
-                            <div class="d-flex justify-content-end gap-2">
+                        <td class="text-end pe-4 py-3" data-label="Control Actions" style="min-width: 160px;">
+                            <div class="table-actions-v2">
                                 <button class="btn-premium-edit" onclick='editUser(<?php echo json_encode([
                                     "user_id" => $user["user_id"],
                                     "username" => $user["username"],
@@ -457,7 +588,7 @@ endif; ?>
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
                                 <?php if ($user['user_id'] !== getCurrentUserId()): ?>
-                                <form method="POST" class="d-inline" onsubmit="return confirmDelete('Are you sure you want to remove this user?');">
+                                <form method="POST" onsubmit="return confirmDelete('Are you sure you want to remove this user?');">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="user_id" value="<?php echo htmlspecialchars($user['user_id'] ?? ''); ?>">
@@ -469,277 +600,315 @@ endif; ?>
                             </div>
                         </td>
                     </tr>
-                    <?php
-endwhile; ?>
+                    <?php endwhile; ?>
+                    <?php else: ?>
+                    <tr>
+                        <td colspan="5" class="text-center py-5">
+                            <div class="d-flex flex-column align-items-center gap-3 text-muted">
+                                <i class="fas fa-users fa-3x opacity-25"></i>
+                                <div>
+                                    <p class="fw-bold mb-1">No users found</p>
+                                    <p class="small mb-0">Click "Add User" to register the first user in the system.</p>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- Add User Modal -->
-<div class="modal fade" id="addUserModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST" autocomplete="off" enctype="multipart/form-data">
-                <?php csrfField(); ?>
-                <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add New User</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select name="role" id="add_role" class="form-select" required onchange="toggleAddFields()">
-                            <option value="student">Student</option>
-                            <option value="instructor">Instructor</option>
-                            <option value="registrar">Head Registrar</option>
-                            <option value="registrar_staff">Registrar Staff</option>
-                            <option value="admin">Admin</option>
-                            <option value="dept_head">Diploma Program Head</option>
-                        </select>
-                    </div>
-                    <div id="dept_selector" class="mb-3" style="display:none;">
-                        <label class="form-label" id="dept_label">Diploma Program</label>
-                        <select name="dept_id" id="add_dept_id" class="form-select" onchange="filterAddPrograms()">
-                            <option value="">-- Select Diploma Program --</option>
-                            <?php foreach ($departments_list as $d): ?>
-                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    <div id="program_selector" class="mb-3" style="display:none;">
-                        <label class="form-label">Specific Program (Course)</label>
-                        <select name="program_id" id="add_program_id" class="form-select">
-                            <option value="">-- Select Program --</option>
-                            <?php foreach ($programs_list as $p): ?>
-                                <option value="<?php echo $p['program_id']; ?>" data-dept="<?php echo $p['dept_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    <div id="standard_creds">
-                        <div class="mb-3">
-                            <label class="form-label">Username</label>
-                            <input type="text" name="username" id="add_username" class="form-control">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="password" name="password" id="add_password" class="form-control">
-                        </div>
-                    </div>
-                    <div id="auto_creds" class="alert alert-info py-2">
-                        <small><i class="fas fa-info-circle"></i> Login: <b>Username = ID</b> and <b>Password = Birthday (MM/DD/YYYY)</b>.</small>
-                    </div>
-                    <div id="profile_name_fields" style="display:none;">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">First Name</label>
-                                <input type="text" name="first_name" id="add_first_name" class="form-control">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Last Name</label>
-                                <input type="text" name="last_name" id="add_last_name" class="form-control">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Middle Name</label>
-                                <input type="text" name="middle_name" class="form-control">
-                            </div>
-                            <div class="col-md-6 mb-3" id="dob_field">
-                                <label class="form-label">Birth Date</label>
-                                <input type="date" name="date_of_birth" id="add_dob" class="form-control">
-                            </div>
-                        </div>
-                    </div>
-                    <div id="instructor_only_fields" style="display:none;">
-                        <div class="row">
-                            <!-- Removing legacy department text field, using dept_id instead -->
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Specialization</label>
-                                <input type="text" name="specialization" class="form-control">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Contact Number</label>
-                                <input type="text" name="contact_number" class="form-control">
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Email Address</label>
-                                <input type="email" name="email" class="form-control">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select" required>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Profile Picture (Optional)</label>
-                        <input type="file" name="profile_image" class="form-control" accept="image/jpeg,image/png">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create User</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+
 
 <!-- Edit User Modal -->
 <div class="modal fade" id="editUserModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
             <form method="POST" autocomplete="off" enctype="multipart/form-data">
                 <?php csrfField(); ?>
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="user_id" id="edit_user_id">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit User</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Modify User Profile</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Username</label>
-                        <input type="text" name="username" id="edit_username" class="form-control" required>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-key me-2"></i>Access Credentials</span>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password (leave blank to keep current)</label>
-                        <input type="password" name="password" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select name="role" id="edit_role" class="form-select" required>
-                            <option value="student">Student</option>
-                            <option value="instructor">Instructor</option>
-                            <option value="registrar">Head Registrar</option>
-                            <option value="registrar_staff">Registrar Staff</option>
-                            <option value="admin">Admin</option>
-                            <option value="dept_head">Diploma Program Head</option>
-                        </select>
-                    </div>
-                    <div id="edit_jurisdiction" class="mb-3" style="display:none;">
-                        <label class="form-label">Diploma Program</label>
-                        <select name="dept_id" id="edit_dept_id" class="form-select" onchange="filterEditPrograms()">
-                            <option value="">-- Select Diploma Program --</option>
-                            <?php foreach ($departments_list as $d): ?>
-                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    <div id="edit_program_selector" class="mb-3" style="display:none;">
-                        <label class="form-label">Specific Program (Course)</label>
-                        <select name="program_id" id="edit_program_id" class="form-select">
-                            <option value="">-- Select Program --</option>
-                            <?php foreach ($programs_list as $p): ?>
-                                <option value="<?php echo $p['program_id']; ?>" data-dept="<?php echo $p['dept_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" id="edit_status" class="form-select" required>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label d-block">Current Profile Picture</label>
-                        <div id="edit_image_preview" class="mb-2" style="width: 80px; height: 80px; border-radius: 12px; overflow: hidden; background: #f8fafc; border: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center;">
-                            <i class="fas fa-user fa-2x text-light"></i>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label for="edit_username">Username / System ID</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="username" id="edit_username" class="form-control" required>
+                                    <i class="fas fa-hashtag"></i>
+                                </div>
+                            </div>
                         </div>
-                        <label class="form-label">Update Picture (Optional)</label>
-                        <input type="file" name="profile_image" class="form-control" accept="image/jpeg,image/png">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label for="edit_password">Change Password (Optional)</label>
+                                <div class="input-wrapper">
+                                    <input type="password" name="password" id="edit_password" class="form-control" placeholder="Leave blank to keep current">
+                                    <i class="fas fa-lock"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label for="edit_role">Role Assignment</label>
+                                <div class="input-wrapper">
+                                    <select name="role" id="edit_role" class="form-select" required onchange="toggleEditFields()">
+                                        <option value="student">Student</option>
+                                        <option value="instructor">Instructor</option>
+                                        <option value="registrar">Head Registrar</option>
+                                        <option value="registrar_staff">Clerk</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="dept_head">Diploma Program Head</option>
+                                    </select>
+                                    <i class="fas fa-user-tag"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label for="edit_status">Current Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select" required>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="edit_global_access_alert" class="login-details-alert bg-primary bg-opacity-10 border-primary border-opacity-25 text-primary mb-3" style="display:none;">
+                        <i class="fas fa-globe-asia me-2"></i>
+                        <div>
+                            <strong>Global Institutional Access Active</strong><br>
+                            This account maintains oversight of all programs. Selection of specific departments is disabled for this role.
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6" id="edit_jurisdiction" style="display:none;">
+                            <div class="premium-input-group">
+                                <label for="edit_dept_id">Designated Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <select name="dept_id" id="edit_dept_id" class="form-select" onchange="filterEditPrograms()">
+                                        <option value="">-- Select Diploma Program --</option>
+                                        <?php foreach ($departments_list as $d): ?>
+                                            <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="edit_program_selector" style="display:none;">
+                            <div class="premium-input-group">
+                                <label for="edit_program_id">Specific Academic Program</label>
+                                <div class="input-wrapper">
+                                    <select name="program_id" id="edit_program_id" class="form-select">
+                                        <option value="">-- Select Program --</option>
+                                        <?php foreach ($programs_list as $p): ?>
+                                            <option value="<?php echo $p['program_id']; ?>" data-dept="<?php echo $p['dept_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-graduation-cap"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-image me-2"></i>Profile Representation</span>
+                    </div>
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <div id="edit_image_preview" style="width: 80px; height: 80px; border-radius: 1rem; overflow: hidden; background: #f8fafc; border: 2px solid #e2e8f0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                                <i class="fas fa-user fa-2x text-light"></i>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <div class="premium-input-group mb-0">
+                                <label for="edit_profile_image">Modify Profile Picture</label>
+                                <div class="input-wrapper">
+                                    <input type="file" name="profile_image" id="edit_profile_image" class="form-control" accept="image/jpeg,image/png" onchange="previewImage(this, 'edit_image_preview')">
+                                    <i class="fas fa-upload"></i>
+                                </div>
+                                <small class="text-muted mt-1 d-block" style="font-size: 0.75rem;">Supported: JPG, PNG. Max size 2MB.</small>
+                            </div>
+                        </div>
+                    </div>
+                       <div class="modal-footer d-flex justify-content-end gap-3">
+                    <button type="button" class="btn btn-discard px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile px-5">
+                        <i class="fas fa-save me-2"></i> Update Profile
+                    </button>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update User</button>
-                </div>
+         </div>
             </form>
         </div>
     </div>
 </div>
 
+<?php require_once '../includes/footer.php'; ?>
+
 <script>
+// Role display name mapping
+const ROLE_NAMES = {
+    'student': 'Student',
+    'instructor': 'Instructor',
+    'registrar': 'Head Registrar',
+    'registrar_staff': 'Clerk',
+    'admin': 'Administrator',
+    'dept_head': 'Program Head'
+};
+
 function toggleAddFields() {
     const role = document.getElementById('add_role').value;
     const standard = document.getElementById('standard_creds');
-    const auto = document.getElementById('auto_creds');
     const nameFields = document.getElementById('profile_name_fields');
     const instructorFields = document.getElementById('instructor_only_fields');
     const deptSelector = document.getElementById('dept_selector');
     const deptLabel = document.getElementById('dept_label');
+    const globalAlert = document.getElementById('add_global_access_alert');
+    const alertText = document.getElementById('alert_text');
+    const progSelector = document.getElementById('program_selector');
+    const academicSection = document.getElementById('academic_section');
+    const modalTitle = document.getElementById('addModalTitle');
+    const submitBtn = document.getElementById('addSubmitBtn');
+    const dobField = document.getElementById('add_dob');
+    const contactField = document.getElementById('add_contact').closest('.col-md-4');
+    const emailField = document.getElementById('add_email').closest('.col-md-4');
     
-    // Reset
-    deptSelector.style.display = 'none';
+    // --- RESET EVERYTHING ---
+    progSelector.style.display = 'none';
+    globalAlert.style.display = 'none';
+    instructorFields.style.display = 'none';
+    standard.style.display = 'none';
+    
+    // Name fields are ALWAYS visible for every role
+    nameFields.style.display = 'block';
 
+    // Update dynamic title & button
+    const roleDisplay = ROLE_NAMES[role] || role;
+    modalTitle.querySelector('span').innerText = 'Register ' + roleDisplay;
+    submitBtn.querySelector('span').innerText = 'Register ' + roleDisplay;
+
+    // --- STUDENT / INSTRUCTOR ---
     if (role === 'student' || role === 'instructor') {
-        standard.style.display = 'none';
-        auto.style.display = 'block';
-        nameFields.style.display = 'block';
+        // Auto credentials alert
+        globalAlert.style.display = 'flex';
+        alertText.innerHTML = 'Login Credentials will be generated automatically: <strong>Username = ID</strong> and <strong>Password = Birthday (MM/DD/YYYY)</strong>.';
+        
+        // Show academic section with dept
+        academicSection.style.display = 'block';
         deptSelector.style.display = 'block';
-        document.getElementById('program_selector').style.display = (role === 'student' ? 'block' : 'none');
-        deptLabel.innerText = 'Diploma Program';
+        deptLabel.innerText = 'DIPLOMA PROGRAM';
+        progSelector.style.display = (role === 'student' ? 'block' : 'none');
+        
+        // Show DOB, contact, email
+        dobField.closest('.col-md-4').style.display = '';
+        contactField.style.display = '';
+        emailField.style.display = '';
+        
+        // Instructor specialization
+        instructorFields.style.display = (role === 'instructor' ? 'block' : 'none');
+
+        // Requirements
         document.getElementById('add_username').required = false;
         document.getElementById('add_password').required = false;
         document.getElementById('add_first_name').required = true;
         document.getElementById('add_last_name').required = true;
-        document.getElementById('add_dob').required = true;
+        dobField.required = true;
         document.getElementById('add_dept_id').required = true;
-        
-        if (role === 'instructor') {
-            instructorFields.style.display = 'block';
-        } else {
-            instructorFields.style.display = 'none';
-        }
-    } else {
+
+    // --- ADMIN / HEAD REGISTRAR ---
+    } else if (role === 'admin' || role === 'registrar') {
+        // Manual credentials
         standard.style.display = 'block';
-        auto.style.display = 'none';
-        nameFields.style.display = 'none';
-        instructorFields.style.display = 'none';
+        
+        // Global access alert
+        globalAlert.style.display = 'flex';
+        alertText.innerHTML = '<strong>Global Institutional Access Enabled</strong><br>This administrative role has oversight across all Diploma Programs. No specific department assignment is required.';
+        
+        // Hide academic section entirely
+        academicSection.style.display = 'none';
+        
+        // Hide DOB, contact, email for admins
+        dobField.closest('.col-md-4').style.display = 'none';
+        contactField.style.display = 'none';
+        emailField.style.display = 'none';
+
+        // Requirements
         document.getElementById('add_username').required = true;
         document.getElementById('add_password').required = true;
-        document.getElementById('add_first_name').required = false;
+        document.getElementById('add_first_name').required = true;
         document.getElementById('add_last_name').required = false;
-        document.getElementById('add_dob').required = false;
+        dobField.required = false;
         document.getElementById('add_dept_id').required = false;
 
-        if (role === 'dept_head' || role === 'registrar_staff') {
-            deptSelector.style.display = 'block';
-            deptLabel.innerText = role === 'dept_head' ? 'Jurisdiction (Diploma Program)' : 'Designated Diploma Program';
-            document.getElementById('add_dept_id').required = true;
-        }
+    // --- DEPT HEAD / CLERK ---
+    } else {
+        // Manual credentials
+        standard.style.display = 'block';
+        
+        // Show academic assignment with dept
+        academicSection.style.display = 'block';
+        deptSelector.style.display = 'block';
+        deptLabel.innerText = (role === 'dept_head') ? 'JURISDICTION (DIPLOMA PROGRAM)' : 'DESIGNATED DIPLOMA PROGRAM';
+
+        // Hide DOB, contact, email
+        dobField.closest('.col-md-4').style.display = 'none';
+        contactField.style.display = 'none';
+        emailField.style.display = 'none';
+
+        // Requirements
+        document.getElementById('add_username').required = true;
+        document.getElementById('add_password').required = true;
+        document.getElementById('add_first_name').required = true;
+        document.getElementById('add_last_name').required = false;
+        dobField.required = false;
+        document.getElementById('add_dept_id').required = true;
     }
 }
+
+document.addEventListener('DOMContentLoaded', toggleAddFields);
 
 function toggleEditFields() {
     const role = document.getElementById('edit_role').value;
     const editJurisdiction = document.getElementById('edit_jurisdiction');
     const editProgram = document.getElementById('edit_program_selector');
+    const editGlobalAlert = document.getElementById('edit_global_access_alert');
+
+    // Reset
+    editJurisdiction.style.display = 'none';
+    editProgram.style.display = 'none';
+    editGlobalAlert.style.display = 'none';
 
     if (role === 'dept_head' || role === 'instructor' || role === 'student' || role === 'registrar_staff') {
         editJurisdiction.style.display = 'block';
         if (role === 'student') {
             editProgram.style.display = 'block';
             filterEditPrograms();
-        } else {
-            editProgram.style.display = 'none';
         }
-    } else {
-        editJurisdiction.style.display = 'none';
-        editProgram.style.display = 'none';
+    } else if (role === 'registrar' || role === 'admin') {
+        editGlobalAlert.style.display = 'flex';
     }
 }
 
@@ -773,13 +942,40 @@ function filterEditPrograms() {
     }
 }
 
-// Run on load
-let userModal;
+// Modal instances
+let addUserModalObj;
+let editUserModalObj;
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize modals
+    const addEl = document.getElementById('addUserModal');
+    const editEl = document.getElementById('editUserModal');
+    
+    if (addEl) addUserModalObj = new bootstrap.Modal(addEl);
+    if (editEl) editUserModalObj = new bootstrap.Modal(editEl);
+
     toggleAddFields();
-    document.getElementById('edit_role').addEventListener('change', toggleEditFields);
-    userModal = new bootstrap.Modal(document.getElementById('editUserModal'));
+    
+    const editRoleEl = document.getElementById('edit_role');
+    if (editRoleEl) {
+        editRoleEl.addEventListener('change', toggleEditFields);
+    }
 });
+
+function showAddUserModal() {
+    console.log("Opening Add User Modal...");
+    if (addUserModalObj) {
+        addUserModalObj.show();
+    } else {
+        const modalEl = document.getElementById('addUserModal');
+        if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        } else {
+            console.error("Modal element #addUserModal not found!");
+        }
+    }
+}
 
 function editUser(user) {
     document.getElementById('edit_user_id').value = user.user_id || '';
@@ -799,7 +995,9 @@ function editUser(user) {
     
     toggleEditFields();
     
-    userModal.show();
+    if (editUserModalObj) {
+        editUserModalObj.show();
+    }
 }
 
 // Real-time status update polling
@@ -819,32 +1017,37 @@ function updateUserStatuses() {
                 if (!container) continue;
 
                 let html = '';
-                // Account Status Badge
-                html += `<div class="mb-1">
-                    <span class="badge rounded-pill ${user.status === 'active' ? 'bg-success' : 'bg-secondary'} bg-opacity-10 text-${user.status === 'active' ? 'success' : 'secondary'} px-2 py-1">
-                        <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> Acc: ${user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                    </span>
-                </div>`;
-
-                if (user.isOnline) {
-                    html += `<span class="badge bg-success rounded-pill px-2 py-1 shadow-sm">
-                        <i class="fas fa-signal me-1"></i> Online (${user.sessionDuration})
-                    </span>`;
-                } else {
-                    html += `<span class="badge bg-light text-muted border border-secondary border-opacity-25 rounded-pill px-2 py-1">
-                        <i class="fas fa-bed me-1"></i> Offline
-                    </span>
-                    <div class="mt-1 small text-muted" style="font-size: 0.70rem;">
-                        ${user.lastLogin}
+                const pulseColor = user.isOnline ? '#22c55e' : '#ef4444';
+                const statusLabel = user.isOnline ? 'Active Online' : 'User Offline';
+                const labelColor = user.isOnline ? '#166534' : '#b91c1c';
+                
+                // Header (Pulse & Status Text)
+                html += `
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="position-relative d-flex" style="width: 10px; height: 10px;">
+                            ${user.isOnline ? `<span class="animate-ping position-absolute h-100 w-100 rounded-circle opacity-75" style="background: ${pulseColor};"></span>` : ''}
+                            <span class="position-relative rounded-circle h-100 w-100" style="background: ${pulseColor}; border: 1.5px solid #fff; box-shadow: 0 0 5px ${pulseColor}44;"></span>
+                        </span>
+                        <span class="fw-800 text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em; color: ${labelColor}; font-family: 'Outfit', sans-serif;">
+                            ${statusLabel}
+                        </span>
                     </div>`;
-                }
 
-                html += `<div class="mt-1 text-muted" style="font-size: 0.65rem;">
-                    <i class="fas fa-desktop me-1"></i> IP: ${user.lastIP}
-                </div>
-                <div class="mt-1 text-primary" style="font-size: 0.65rem; font-weight: 500;">
-                    <i class="fas fa-file-alt me-1"></i> Doc: ${user.lastDoc}
-                </div>`;
+                // Badges (Account Status)
+                html += `
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="badge border border-${user.status === 'active' ? 'success' : 'secondary'} border-opacity-25 bg-${user.status === 'active' ? 'success' : 'secondary'} bg-opacity-10 text-${user.status === 'active' ? 'success' : 'secondary'} rounded-1 py-1 px-2" style="font-size: 0.6rem; font-weight: 700;">
+                            <i class="fas fa-shield-halved me-1 opacity-75"></i> ${user.status.toUpperCase()}
+                        </span>
+                    </div>`;
+
+                // Meta Info (Time, IP, Activity)
+                html += `
+                    <div class="text-muted d-flex flex-column gap-1" style="font-size: 0.65rem;">
+                        <div class="d-flex align-items-center"><i class="far fa-clock me-2 opacity-50"></i>${user.isOnline ? `Online (${user.sessionDuration})` : user.lastLogin}</div>
+                        <div class="d-flex align-items-center"><i class="fas fa-network-wired me-2 opacity-50"></i>IP: <span class="ms-1 font-monospace">${user.lastIP}</span></div>
+                        <div class="d-flex align-items-center text-primary" style="font-weight: 500;"><i class="fas fa-fingerprint me-2 opacity-50"></i>Act: ${user.lastDoc}</div>
+                    </div>`;
 
                 container.innerHTML = html;
             }
@@ -859,8 +1062,49 @@ function updateUserStatuses() {
 }
 
 
+// Filter users locally
+function filterUsers() {
+    const input = document.getElementById('userSearchInput');
+    const filter = input.value.toLowerCase().trim();
+    const table = document.getElementById('usersTable');
+    const tr = table.getElementsByTagName('tr');
+    const counter = document.getElementById('searchCounter');
+    let visibleCount = 0;
+
+    for (let i = 1; i < tr.length; i++) {
+        // Find the "Account Identity" column (contains Display Name and @username)
+        const nameCol = tr[i].getElementsByTagName('td')[1];
+        if (nameCol) {
+            const textContent = nameCol.textContent || nameCol.innerText;
+            if (textContent.toLowerCase().indexOf(filter) > -1) {
+                tr[i].style.display = "";
+                visibleCount++;
+            } else {
+                tr[i].style.display = "none";
+            }
+        }
+    }
+
+    // Update counter if search is active
+    if (filter === "") {
+        counter.textContent = "";
+    } else {
+        counter.textContent = visibleCount + " found";
+    }
+}
+
+// Real-time image preview
+function previewImage(input, containerId) {
+    const container = document.getElementById(containerId);
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            container.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover;">`;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
 // Start polling every 10 seconds
 setInterval(updateUserStatuses, 10000);
 </script>
-
-<?php require_once '../includes/footer.php'; ?>

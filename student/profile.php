@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     if (!validateCSRFToken($_POST['csrf_token'] ?? '')) {
         redirectWithMessage('profile.php', 'Invalid security token. Please try again.', 'danger');
     }
-    
+
     $email = trim($_POST['email']);
     $password = $_POST['password'];
 
@@ -60,113 +60,182 @@ require_once '../includes/header.php';
 ?>
 
 <style>
+    :root {
+        --profile-gradient: linear-gradient(135deg, #002366 0%, #0038A8 100%);
+        --card-shadow-premium: 0 15px 35px rgba(0,0,0,0.1), 0 5px 15px rgba(0,0,0,0.05);
+    }
+    
     .profile-card {
         border: none;
-        border-radius: 1.5rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.05), 0 1px 8px rgba(0,0,0,0.02);
+        border-radius: 2rem;
+        box-shadow: var(--card-shadow-premium);
         background: #fff;
         overflow: hidden;
-    }
-    .profile-info-label {
-        font-weight: 600;
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        margin-bottom: 0.25rem;
-    }
-    .profile-info-value {
-        font-size: 1.1rem;
-        font-weight: 500;
-        color: var(--text-main);
         margin-bottom: 2rem;
     }
-    .profile-section-title {
-        border-bottom: 2px solid #f1f5f9;
-        padding-bottom: 1rem;
-        margin-bottom: 2rem;
-        color: var(--primary-indigo);
-        font-size: 1.2rem;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
+
+    .cinema-header {
+        height: 180px;
+        background: var(--profile-gradient);
+        position: relative;
+        overflow: hidden;
     }
-    .profile-section-title i {
-        width: 32px;
-        height: 32px;
-        background: rgba(79, 70, 229, 0.1);
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 0.9rem;
-        margin-right: 12px;
+
+    .cinema-header::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: url('data:image/svg+xml,<svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><g fill="%23ffffff" fill-opacity="0.05" fill-rule="evenodd"><circle cx="3" cy="3" r="3"/><circle cx="13" cy="13" r="3"/></g></svg>');
     }
-    .profile-card-header { background: #002366; color: white; }
-    .text-indigo { color: #0038A8; }
-    .profile-item {
-        background: #f8fafc;
-        padding: 1.25rem;
-        border-radius: 1rem;
-        border: 1px solid #f1f5f9;
-        transition: transform 0.2s, box-shadow 0.2s;
-        height: 100%;
+
+    .profile-main-content {
+        position: relative;
+        padding: 0 1.5rem 2rem;
+        margin-top: -60px;
+        text-align: center;
     }
-    .profile-item:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
-    }
+
     .profile-pic-container {
         position: relative;
         width: 150px;
         height: 150px;
-        margin: 0 auto 2rem;
+        margin: 0 auto 1.5rem;
+        z-index: 10;
     }
+
     .profile-pic {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        border-radius: 1.5rem;
-        border: 4px solid #fff;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-        background: #f1f5f9;
+        border-radius: 2.5rem;
+        border: 6px solid #fff;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        background-color: #f1f5f9;
+        background-image: url('<?php echo BASE_URL; ?>BCAT logo 2024.png');
+        background-size: 100% auto;
+        background-position: center;
+        background-repeat: no-repeat;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
     }
+
     .profile-pic img {
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
+
     .profile-pic-overlay {
         position: absolute;
-        bottom: -10px;
-        right: -10px;
-        background: var(--primary-indigo);
-        width: 44px;
-        height: 44px;
+        bottom: 0;
+        right: 0;
+        background: #fff;
+        width: 38px;
+        height: 38px;
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        color: white;
+        color: var(--primary-indigo);
         cursor: pointer;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 4px 12px rgba(0, 56, 168, 0.3);
-        border: 3px solid #fff;
-        z-index: 10;
+        transition: all 0.3s;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        z-index: 11;
     }
-    .profile-pic-overlay:hover {
-        transform: scale(1.1) rotate(5deg);
-        background: var(--secondary-indigo);
+
+    .profile-pic-overlay:hover { transform: scale(1.1); color: var(--secondary-indigo); }
+
+    .student-name { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.5rem; color: #1e293b; margin-bottom: 0.25rem; }
+    .student-id-pill { background: rgba(0, 56, 168, 0.08); color: #0038A8; font-weight: 700; font-size: 0.85rem; padding: 0.4rem 1.2rem; border-radius: 2rem; display: inline-block; margin-bottom: 2rem; }
+
+    .stat-highlight-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 2.5rem;
     }
-    .profile-pic-overlay i {
-        font-size: 1.1rem;
+
+    .stat-highlight-item {
+        background: #f8fafc;
+        padding: 1rem 0.5rem;
+        border-radius: 1.25rem;
+        border: 1px solid #f1f5f9;
     }
-    #profileImageInput {
-        display: none;
+
+    .stat-highlight-label { font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+    .stat-highlight-value { font-size: 0.9rem; font-weight: 800; color: #0f172a; }
+
+    .profile-section-card {
+        background: #fff;
+        border-radius: 1.5rem;
+        padding: 1.5rem;
+        border: 1px solid #f1f5f9;
+        margin-bottom: 1.5rem;
+        text-align: left;
     }
+
+    .section-title-premium {
+        font-size: 1rem;
+        font-weight: 800;
+        color: #1e293b;
+        margin-bottom: 1.25rem;
+        display: flex;
+        align-items: center;
+    }
+
+    .section-title-premium i {
+        width: 32px;
+        height: 32px;
+        background: rgba(0, 56, 168, 0.1);
+        color: #0038A8;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 12px;
+        font-size: 0.9rem;
+    }
+
+    .info-row {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 1.25rem;
+    }
+
+    .info-row:last-child { margin-bottom: 0; }
+    .info-label { font-size: 0.7rem; font-weight: 800; color: #0038A8; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.3rem; opacity: 0.8; }
+    .info-value { font-size: 0.95rem; font-weight: 600; color: #334155; }
+
+    .security-section {
+        background: #f8fafc;
+        border-radius: 2rem;
+        padding: 2rem 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .premium-input-group {
+        background: #fff;
+        border-radius: 1rem;
+        padding: 0.75rem 1rem;
+        border: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        transition: all 0.3s;
+        margin-bottom: 1rem;
+    }
+
+    .premium-input-group:focus-within {
+        border-color: #0038A8;
+        box-shadow: 0 0 0 4px rgba(0, 56, 168, 0.1);
+    }
+
+    .premium-input-group i { color: #94a3b8; margin-right: 1rem; }
+    .premium-input-group input { border: none; outline: none; width: 100%; font-weight: 600; color: #1e293b; background: transparent; }
+
+    #profileImageInput { display: none; }
+    
     .upload-progress {
         position: absolute;
         top: 0; left: 0; bottom: 0; right: 0;
@@ -177,225 +246,152 @@ require_once '../includes/header.php';
         align-items: center;
         justify-content: center;
         z-index: 1000;
-        border-radius: 1.25rem;
+        border-radius: 2.5rem;
         color: white;
     }
-    .loader-circle {
-        width: 38px;
-        height: 38px;
-        border: 3px solid rgba(255, 255, 255, 0.3);
-        border-top: 3px solid #fff;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin-bottom: 8px;
-    }
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    .loader-text {
-        font-size: 0.7rem;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        opacity: 0.9;
+
+    @media (max-width: 576px) {
+        .stat-highlight-grid { gap: 0.5rem; }
+        .stat-highlight-value { font-size: 0.8rem; }
+        .profile-card { border-radius: 1.5rem; }
+        .cinema-header { height: 140px; }
     }
 </style>
 
-<div class="row justify-content-center mt-4">
-    <div class="col-xl-11">
+<div class="row justify-content-center mt-3">
+    <div class="col-xl-10">
         <div class="profile-card">
-            <div class="card-header profile-card-header py-3 px-4 border-0">
-                <div class="d-flex align-items-center">
-                    <div class="bg-white rounded-circle p-2 me-3" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-user-graduate text-primary"></i>
-                    </div>
-                    <h5 class="mb-0 fw-bold">My Student Profile</h5>
-                </div>
-            </div>
-            <div class="card-body p-4 p-md-5">
-                <!-- Profile Image Section -->
+            <!-- Cinema Header -->
+            <div class="cinema-header"></div>
+
+            <div class="profile-main-content">
+                <!-- Overlapping Profile Pic -->
                 <div class="profile-pic-container">
                     <div class="profile-pic" id="profilePicPreview">
                         <?php if (!empty($student['profile_image'])): ?>
                             <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($student['profile_image']); ?>?v=<?php echo time(); ?>" alt="Profile">
-                        <?php else: ?>
-                            <i class="fas fa-user-graduate fa-4x text-light"></i>
-                        <?php endif; ?>
+                        <?php
+else: ?>
+                            <img src="<?php echo BASE_URL; ?>BCAT logo 2024.png" alt="Default Branding" style="width: 100%; height: 100%; object-fit: cover; opacity: 1;">
+                        <?php
+endif; ?>
                         <div class="upload-progress" id="uploadProgress">
-                            <div class="loader-circle"></div>
-                            <div class="loader-text">Processing...</div>
+                            <div class="spinner-border text-white spinner-border-sm mb-2" role="status"></div>
+                            <div class="small fw-bold">Syncing...</div>
                         </div>
                     </div>
-                    <label for="profileImageInput" class="profile-pic-overlay" title="Update Profile Picture">
+                    <label for="profileImageInput" class="profile-pic-overlay shadow-sm" title="Change Photo">
                         <i class="fas fa-camera"></i>
                     </label>
-                    <input type="file" id="profileImageInput" accept="image/jpeg,image/png">
+                    <input type="file" id="profileImageInput" accept="image/jpeg,image/png,image/webp">
                 </div>
 
-                <div class="row g-5">
-                    <!-- Personal Information -->
-                    <div class="col-lg-6">
-                        <h5 class="profile-section-title">
-                            <i class="fas fa-user"></i> Personal Details
-                        </h5>
-                        <div class="row g-3">
-                            <div class="col-12">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Full Name</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars(($student['first_name'] ?? '') . (($student['middle_name'] ?? '') ? ' ' . $student['middle_name'] : '') . ' ' . ($student['last_name'] ?? '')); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Student ID</div>
-                                    <div class="profile-info-value text-primary fw-bold mb-0"><?php echo htmlspecialchars($student['student_no'] ?? ''); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Date of Birth</div>
-                                    <div class="profile-info-value mb-0"><?php echo formatDate($student['date_of_birth']); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Gender</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['gender'] ?? 'Not Specified'); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Religion</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['religion'] ?? 'Not Specified'); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Home Address</div>
-                                    <div class="profile-info-value mb-0"><?php echo nl2br(htmlspecialchars($student['address'] ?? 'No address provided')); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Municipality/City</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['municipality'] ?? 'Not Specified'); ?></div>
-                                </div>
-                            </div>
-                        </div>
+                <h2 class="student-name"><?php echo htmlspecialchars(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')); ?></h2>
+                <div class="student-id-pill"><?php echo htmlspecialchars($student['student_no'] ?? ''); ?></div>
+                
+                <div class="mb-4">
+                    <div style="color: #0038A8; font-weight: 600; font-size: 1rem; margin-bottom: 0.5rem;">
+                        <?php echo htmlspecialchars($student['program_name'] ?? 'No Program Assigned'); ?>
                     </div>
+                    <span class="badge rounded-pill px-4 py-2" style="background: #10b981; color: white; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">
+                        Enrolled
+                    </span>
+                </div>
 
-                    <!-- Academic & Contact Information -->
-                    <div class="col-lg-6">
-                        <h5 class="profile-section-title">
-                            <i class="fas fa-graduation-cap"></i> Academic & Contact
-                        </h5>
-                        <div class="row g-3">
-                            <?php if (!empty($student['academic_honor'])): ?>
-                            <div class="col-12">
-                                <div class="profile-item" style="background-color: #f0fdf4; border-color: #bbf7d0;">
-                                    <div class="profile-info-label text-success"><i class="fas fa-medal me-1"></i> Academic Honor</div>
-                                    <div class="profile-info-value fw-bold text-success fs-5 mb-0"><?php echo htmlspecialchars($student['academic_honor'] ?? ''); ?></div>
-                                </div>
-                            </div>
-                            <?php endif; ?>
-                            <div class="col-12">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Current Program (Course)</div>
-                                    <div class="profile-info-value fw-bold text-primary mb-0"><?php echo htmlspecialchars($student['program_name'] ?? 'No program assigned'); ?></div>
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">College / Diploma Program</div>
-                                    <div class="profile-info-value mb-0 small text-muted">
-                                        <?php echo htmlspecialchars(($student['college_name'] ? $student['college_name'] . ' - ' : '') . ($student['dept_name'] ?? 'N/A')); ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Year Level</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['year_level']); ?><?php
+                <!-- Stat Grid -->
+                <div class="stat-highlight-grid">
+                    <div class="stat-highlight-item">
+                        <div class="stat-highlight-label">Year</div>
+                        <div class="stat-highlight-value"><?php
+$yl = $student['year_level'] ?? 1;
 $suffix = ['th', 'st', 'nd', 'rd'];
-echo($student['year_level'] < 4) ? $suffix[$student['year_level']] : 'th';
-?> Year</div>
-                                </div>
+echo $yl . ($yl <= 3 ? $suffix[$yl] : 'th');
+?></div>
+                    </div>
+                    <div class="stat-highlight-item">
+                        <div class="stat-highlight-label">Status</div>
+                        <div class="stat-highlight-value text-success"><?php echo ucfirst($student['status'] ?? 'Active'); ?></div>
+                    </div>
+                    <div class="stat-highlight-item">
+                        <div class="stat-highlight-label">Honor</div>
+                        <div class="stat-highlight-value"><?php echo !empty($student['academic_honor']) ? 'Yes' : 'None'; ?></div>
+                    </div>
+                </div>
+
+                <!-- Information Sections -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="profile-section-card h-100">
+                            <h6 class="section-title-premium"><i class="fas fa-id-card"></i> Identity</h6>
+                            <div class="info-row">
+                                <div class="info-label">Current Program</div>
+                                <div class="info-value text-primary"><?php echo htmlspecialchars($student['program_name'] ?? 'Not Set'); ?></div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Account Status</div>
-                                    <div class="profile-info-value mb-0">
-                                        <span class="badge bg-<?php echo $student['status'] === 'active' ? 'success' : 'secondary'; ?> px-4 py-2 rounded-pill shadow-sm">
-                                            <?php echo ucfirst($student['status']); ?>
-                                        </span>
-                                    </div>
-                                </div>
+                            <div class="info-row">
+                                <div class="info-label">Birth Date</div>
+                                <div class="info-value"><?php echo !empty($student['date_of_birth']) ? formatDate($student['date_of_birth']) : 'Not Set'; ?></div>
                             </div>
-                            <div class="col-md-12">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Email Address</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['email'] ?? 'No email provided'); ?></div>
-                                </div>
+                            <div class="info-row">
+                                <div class="info-label">Gender</div>
+                                <div class="info-value text-capitalize"><?php echo htmlspecialchars($student['gender'] ?? 'Not Set'); ?></div>
                             </div>
-                            <div class="col-md-12">
-                                <div class="profile-item">
-                                    <div class="profile-info-label">Contact Number</div>
-                                    <div class="profile-info-value mb-0"><?php echo htmlspecialchars($student['contact_number'] ?? 'No contact number'); ?></div>
-                                </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="profile-section-card h-100">
+                            <h6 class="section-title-premium"><i class="fas fa-envelope"></i> Contact</h6>
+                            <div class="info-row">
+                                <div class="info-label">Personal Email</div>
+                                <div class="info-value"><?php echo htmlspecialchars($student['email'] ?? 'Not Set'); ?></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Mobile Number</div>
+                                <div class="info-value"><?php echo htmlspecialchars($student['contact_number'] ?? 'Not Set'); ?></div>
+                            </div>
+                            <div class="info-row">
+                                <div class="info-label">Residential Address</div>
+                                <div class="info-value x-small"><?php echo htmlspecialchars($student['address'] ?? 'Not Set'); ?></div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Account Security Section -->
-                <div class="row mt-5">
-                    <div class="col-12 px-5">
-                        <div class="p-4 bg-light rounded-4 border">
-                            <h5 class="fw-bold mb-4 text-primary d-flex align-items-center">
-                                <i class="fas fa-shield-alt me-2"></i> Account Security Settings
-                            </h5>
-                            <form method="POST">
-                                <?php csrfField(); ?>
-                                <div class="row g-4">
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label fw-bold small text-muted text-uppercase">Portal Email Address</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-white border-end-0 text-primary">
-                                                    <i class="fas fa-envelope"></i>
-                                                </span>
-                                                <input type="email" name="email" class="form-control border-start-0 ps-0" value="<?php echo htmlspecialchars($student['email'] ?? ''); ?>" required>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group">
-                                            <label class="form-label fw-bold small text-muted text-uppercase">New Security Key (Optional)</label>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-white border-end-0 text-primary">
-                                                    <i class="fas fa-key"></i>
-                                                </span>
-                                                <input type="password" name="password" class="form-control border-start-0 ps-0" placeholder="••••••••••••••">
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-12">
-                                        <button type="submit" name="update_profile" class="btn btn-primary px-5 py-2 fw-bold rounded-pill">
-                                            <i class="fas fa-save me-2"></i> Update Security Credentials
-                                        </button>
-                                    </div>
+                <!-- Security Section -->
+                <div class="security-section text-start">
+                    <h6 class="section-title-premium"><i class="fas fa-lock text-danger"></i> Vault Settings</h6>
+                    <form method="POST">
+                        <?php csrfField(); ?>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="premium-input-group">
+                                    <i class="fas fa-envelope"></i>
+                                    <input type="email" name="email" value="<?php echo htmlspecialchars($student['email'] ?? ''); ?>" placeholder="Login Email" required>
                                 </div>
-                            </form>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="premium-input-group">
+                                    <i class="fas fa-key"></i>
+                                    <input type="password" name="password" placeholder="Key Phrase (New)">
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                        <div class="mt-4">
+                        <div class="mt-4 text-center">
+                            <button type="submit" name="update_profile" class="btn-premium-action w-100 py-3">
+                                <i class="fas fa-shield-check"></i> Sync Vault Credentials
+                            </button>
+                        </div>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<?php 
+<?php
+
 $additionalJS = '
 <script>
 $(document).ready(function() {
@@ -404,17 +400,18 @@ $(document).ready(function() {
         if (!file) return;
 
         // Basic validation
-        const allowedTypes = ["image/jpeg", "image/png"];
+        const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
         if (!allowedTypes.includes(file.type)) {
             Swal.fire({
-                icon: "error",
-                title: "Invalid File Type",
-                text: "Please select a JPG or PNG image."
+                icon: "warning",
+                title: "Format Not Supported",
+                text: "Please select a JPG, PNG, or WebP image. (Tip: If you\'re on iPhone, avoid HEIC files and use JPG)."
             });
             return;
         }
 
-        if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        const maxSize = 5 * 1024 * 1024; // 5MB
+        if (file.size > maxSize) {
             Swal.fire({
                 icon: "error",
                 title: "File Too Large",
@@ -439,7 +436,7 @@ $(document).ready(function() {
             contentType: false,
             success: function(response) {
                 const elapsed = Date.now() - startTime;
-                const minDelay = 5000; // 5 seconds
+                const minDelay = 2000; // 2 seconds
                 const remaining = Math.max(0, minDelay - elapsed);
 
                 setTimeout(function() {
@@ -450,30 +447,38 @@ $(document).ready(function() {
                         Swal.fire({
                             icon: "error",
                             title: "Upload Failed",
-                            text: response.message
+                            text: response.message || "An unknown error occurred during sync."
                         });
                     }
                 }, remaining);
             },
             error: function(xhr, status, error) {
-                const elapsed = Date.now() - startTime;
-                const minDelay = 2000; // 2 seconds for errors
-                const remaining = Math.max(0, minDelay - elapsed);
+                $("#uploadProgress").hide();
+                console.error("Upload Error:", status, error, xhr.responseText);
+                
+                let errorMsg = "An unexpected error occurred.";
+                if (xhr.status === 413) errorMsg = "The image file is too large for the server to process.";
+                else if (xhr.status === 403) {
+                    try {
+                        const err = JSON.parse(xhr.responseText);
+                        errorMsg = err.message || "Session expired or security mismatch. Please refresh.";
+                    } catch(e) {
+                         errorMsg = "Session expired or security mismatch. Please refresh the page.";
+                    }
+                }
+                else if (xhr.status === 500) errorMsg = "Server encountered an error while processing the image.";
 
-                setTimeout(function() {
-                    $("#uploadProgress").hide();
-                    console.error("Upload Error:", status, error, xhr.responseText);
-                    Swal.fire({
-                        icon: "error",
-                        title: "Error",
-                        text: "An unexpected error occurred. Status: " + status + ", Error: " + error
-                    });
-                }, remaining);
+                Swal.fire({
+                    icon: "error",
+                    title: "Sync Error",
+                    text: errorMsg + " (Status: " + xhr.status + ", Error: " + error + ")"
+                });
             }
         });
     });
 });
 </script>
 ';
-require_once '../includes/footer.php'; 
+require_once '../includes/footer.php';
+
 ?>

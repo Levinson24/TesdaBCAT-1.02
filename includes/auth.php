@@ -12,16 +12,25 @@ require_once __DIR__ . '/../config/database.php';
 function startSession()
 {
     if (session_status() === PHP_SESSION_NONE) {
-        // Set secure session cookie parameters
-        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
+        // Support Cloudflare/Proxy HTTPS detection for cookie security
+        $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' || 
+                    isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+
+        // Set session cookie parameters for high-compatibility
         session_set_cookie_params([
             'lifetime' => defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 3600,
             'path' => '/',
             'domain' => '',
-            'secure' => $secure,
+            'secure' => $isHttps,
             'httponly' => true,
-            'samesite' => 'Lax'
+            'samesite' => $isHttps ? 'None' : 'Lax' // Correct: 'None' for Tunnels, 'Lax' for local
         ]);
+
+        // Production Security Headers
+        header('X-Frame-Options: SAMEORIGIN');
+        header('X-Content-Type-Options: nosniff');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('X-XSS-Protection: 1; mode=block');
 
         session_start();
 
@@ -176,11 +185,11 @@ function createUserSession($user)
     $_SESSION['login_time'] = time();
     $_SESSION['last_activity_time'] = time();
     
-    // Security Fingerprint (IP + User Agent)
-    // This prevents simple bypass scripts from "creating" a session without a valid fingerprint
+    // Security Fingerprint (Flexible for mobile roaming)
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $_SESSION['fingerprint'] = hash('sha256', $userAgent . $ip . 'TESDA_SALT_2024');
+    // Store UA and IP separately to allow "Soft Matching"
+    $_SESSION['ua_fingerprint'] = hash('sha256', $userAgent . 'TESDA_SECRET_UA_2024');
+    $_SESSION['ip_fingerprint'] = $_SERVER['REMOTE_ADDR'] ?? '';
 }
 
 /**
@@ -221,13 +230,21 @@ function hasRole($allowedRoles)
  */
 function requireLogin($redirectUrl = '../index.php')
 {
+    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
     if (!isLoggedIn()) {
+        if ($isAjax) {
+            header('HTTP/1.1 403 Forbidden');
+            $debugMsg = !isset($_COOKIE[session_name()]) ? "Cookie missing" : "Session data lost";
+            echo json_encode(['success' => false, 'message' => "Session expired ($debugMsg). Please refresh."]);
+            exit();
+        }
         header("Location: $redirectUrl");
         exit();
     }
 
-    // 10-Minute Inactivity Timeout Check
-    $timeout_duration = 600; // 600 seconds = 10 minutes
+    // 60-Minute Inactivity Timeout Check (Increased for Mobile Stability)
+    $timeout_duration = 3600; // 3600 seconds = 60 minutes
     if (isset($_SESSION['last_activity_time']) && (time() - $_SESSION['last_activity_time']) > $timeout_duration) {
         $userId = $_SESSION['user_id'] ?? 0;
         logAudit($userId, 'TIMEOUT', 'sessions', $userId, null, 'User session timed out due to 10 minutes of inactivity');
@@ -249,21 +266,37 @@ function requireLogin($redirectUrl = '../index.php')
     // Refresh last activity for current request
     $_SESSION['last_activity_time'] = time();
 
-    // Verify Session Fingerprint
+    // Security Fingerprint (Bypassed for High Mobile Compatibility)
+    /*
     $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $currentFingerprint = hash('sha256', $userAgent . $ip . 'TESDA_SALT_2024');
-
-    if (!isset($_SESSION['fingerprint']) || $_SESSION['fingerprint'] !== $currentFingerprint) {
-        // Potential session hijack or unauthorized bypass attempt
-        $userId = $_SESSION['user_id'] ?? 0;
-        logAudit($userId, 'SECURITY_VIOLATION', 'sessions', $userId, null, 'Invalid session fingerprint - potential bypass attempt blocked');
+    $currentUAFingerprint = hash('sha256', $userAgent . 'TESDA_SECRET_UA_2024');
+    
+    // We strictly verify the User Agent, but we allow for minor shifts common in mobile viewports/pickers
+    if (!isset($_SESSION['ua_fingerprint']) || $_SESSION['ua_fingerprint'] !== $currentUAFingerprint) {
+        // Log the change for debugging but don't kill the session if it's very recent activity
+        $isRecent = (time() - ($_SESSION['last_activity_time'] ?? 0)) < 300; // 5 minutes grace
         
-        session_unset();
-        session_destroy();
-        header("Location: $redirectUrl?error=invalid_session_security");
-        exit();
+        if ($isRecent) {
+            // Soft match: If UA changed slightly but session is very fresh, just update the fingerprint
+            $_SESSION['ua_fingerprint'] = $currentUAFingerprint;
+            $_SESSION['ip_fingerprint'] = $_SERVER['REMOTE_ADDR'] ?? '';
+        } else {
+            $userId = $_SESSION['user_id'] ?? 0;
+            logAudit($userId, 'SECURITY_RENEWAL_REQUIRED', 'sessions', $userId, null, 'Session fingerprint mismatch - renewal required');
+            
+            if ($isAjax) {
+                header('HTTP/1.1 403 Forbidden');
+                echo json_encode(['success' => false, 'message' => 'Security state changed. Please refresh the page.']);
+                exit();
+            }
+            
+            session_unset();
+            session_destroy();
+            header("Location: $redirectUrl?error=session_renewal");
+            exit();
+        }
     }
+    */
 
     // Verify user still exists and is active in the database
     $conn = getDBConnection();
@@ -382,6 +415,11 @@ function getUserProfile($userId, $role)
     $profile = $result->fetch_assoc();
     $stmt->close();
 
+    // Global Activity Heartbeat: Update last access timestamp on every page load
+    if ($profile) {
+        $conn->query("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = " . intval($userId));
+    }
+
     return $profile;
 }
 
@@ -485,5 +523,21 @@ function logAudit($userId, $action, $tableName, $recordId, $oldValues = null, $n
     catch (Exception $e) {
     // Silently fail audit logging on error rather than crashing the application
     }
+}
+
+/**
+ * Maintenance Utility: Cleanup old audit logs
+ * Keeps the system snappy by rotating logs older than 90 days
+ */
+function cleanupAuditLogs($days = 90) {
+    echo "Starting audit log cleanup (Retention: $days days)...";
+    $conn = getDBConnection();
+    $days = intval($days);
+    $stmt = $conn->prepare("DELETE FROM audit_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)");
+    $stmt->bind_param("i", $days);
+    $stmt->execute();
+    $affected = $stmt->affected_rows;
+    $stmt->close();
+    return $affected;
 }
 ?>

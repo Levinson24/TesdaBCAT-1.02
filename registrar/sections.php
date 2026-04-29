@@ -828,116 +828,19 @@ while ($p = $prog_res->fetch_assoc()) {
         </div>
     </div>
 
-    <script>
-        function handleAddSectionSubmit(event) {
-            event.preventDefault();
-            const form = document.getElementById('addSectionForm');
-            const btn = form.querySelector('button[type="submit"]');
-            const originalHTML = btn.innerHTML;
-
-            // Show spinner in button and disable form controls
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creating...';
-            const controls = form.querySelectorAll('input, select, textarea, button');
-            controls.forEach(el => el.disabled = true);
-
-            const formData = new FormData(form);
-
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    return response.text();
-                })
-                .then(() => {
-                    // hide modal after response so backdrop remains while submitting
-                    const modalEl = document.getElementById('addModal');
-                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                    if (modal) modal.hide();
-
-                    // cleanup any leftover backdrops then reload
-                    setTimeout(() => {
-                        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                        document.body.classList.remove('modal-open');
-                        document.body.style.overflow = '';
-                        document.body.style.paddingRight = '';
-                        location.reload();
-                    }, 200);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    // Re-enable controls and restore button on error, keep modal open
-                    controls.forEach(el => el.disabled = false);
-                    btn.disabled = false;
-                    btn.innerHTML = originalHTML;
-                    alert('An error occurred. Please try again.');
-                });
-
-            return false;
-        }
-
-        function handleEditSectionSubmit(event) {
-            event.preventDefault();
-            const form = document.getElementById('editSectionForm');
-            const btn = form.querySelector('button[type="submit"]');
-            const originalHTML = btn.innerHTML;
-
-            // Show spinner and disable controls
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Updating...';
-            const controls = form.querySelectorAll('input, select, textarea, button');
-            controls.forEach(el => el.disabled = true);
-
-            const formData = new FormData(form);
-
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-                .then(response => response.text())
-                .then(() => {
-                    const modalEl = document.getElementById('editModal');
-                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                    if (modal) modal.hide();
-
-                    setTimeout(() => {
-                        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                        document.body.classList.remove('modal-open');
-                        document.body.style.overflow = 'auto';
-                        location.reload();
-                    }, 200);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    controls.forEach(el => el.disabled = false);
-                    btn.disabled = false;
-                    btn.innerHTML = originalHTML;
-                    alert('An error occurred. Please try again.');
-                });
-
-            return false;
-        }
-
-        function editSection(data) {
-            document.getElementById('edit_section_id').value = data.section_id;
-            document.getElementById('edit_curriculum_id').value = data.curriculum_id;
-            document.getElementById('edit_instructor_id').value = data.instructor_id;
-            document.getElementById('edit_section_name').value = data.section_name;
-            document.getElementById('edit_school_year').value = data.school_year;
-            document.getElementById('edit_semester').value = data.semester;
-            document.getElementById('edit_schedule').value = data.schedule || '';
-            document.getElementById('edit_room').value = data.room || '';
-            document.getElementById('edit_status').value = data.status;
-            new bootstrap.Modal(document.getElementById('editModal')).show();
-        }
+<script>
+function editSection(data) {
+    document.getElementById('edit_section_id').value = data.section_id;
+    document.getElementById('edit_course_id').value = data.course_id;
+    document.getElementById('edit_instructor_id').value = data.instructor_id;
+    document.getElementById('edit_section_name').value = data.section_name;
+    document.getElementById('edit_school_year').value = data.school_year;
+    document.getElementById('edit_semester').value = data.semester;
+    document.getElementById('edit_schedule').value = data.schedule || '';
+    document.getElementById('edit_room').value = data.room || '';
+    document.getElementById('edit_status').value = data.status;
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+}
 
         function openQuickCourse() {
             // Hide addModal cleanly using Bootstrap class/method
@@ -954,298 +857,81 @@ while ($p = $prog_res->fetch_assoc()) {
             }, 400);
         }
 
-        // AJAX Quick Subject Submission
-        const quickSubjectFormEl = document.getElementById('quickSubjectForm');
-        if (quickSubjectFormEl) {
-            quickSubjectFormEl.addEventListener('submit', function (e) {
-                e.preventDefault();
-                const form = this;
-                const btn = form.querySelector('button[type="submit"]');
-                const originalText = btn.innerHTML;
-                const alertBox = document.getElementById('quickSubjectAlert');
-
-                // Reset alert
-                alertBox.classList.add('d-none');
-                alertBox.classList.remove('alert-success', 'alert-danger');
-
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-
-                const formData = new FormData(form);
-
-                fetch('ajax/quick_subject.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // 1. Show success in modal
-                            alertBox.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
-                            alertBox.classList.add('alert-success');
-                            alertBox.classList.remove('d-none');
-
-                            // 2. Append new option to BOTH curriculum_id selects
-                            const newOption = new Option(data.display, data.curriculum_id);
-                            const addSelect = document.querySelector('select[name="curriculum_id"]');
-                            const editSelect = document.getElementById('edit_curriculum_id');
-
-                            if (addSelect) {
-                                addSelect.add(newOption.cloneNode(true));
-                                addSelect.value = data.curriculum_id;
-                            }
-                            if (editSelect) editSelect.add(newOption.cloneNode(true));
-
-                            // 3. Delayed closing
-                            setTimeout(() => {
-                                const quickModalEl = document.getElementById('quickCourseModal');
-                                const quickModal = bootstrap.Modal.getInstance(quickModalEl);
-                                if (quickModal) quickModal.hide();
-
-                                form.reset();
-                                alertBox.classList.add('d-none');
-
-                                // 4. Re-open addModal with slight delay
-                                setTimeout(() => {
-                                    const addModalEl = document.getElementById('addModal');
-                                    if (addModalEl) {
-                                        const addModal = new bootstrap.Modal(addModalEl);
-                                        addModal.show();
-                                    }
-                                }, 400);
-                            }, 1000);
-
-                        } else {
-                            alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + data.message;
-                            alertBox.classList.add('alert-danger');
-                            alertBox.classList.remove('d-none');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alertBox.innerHTML = '<i class="fas fa-times-circle me-2"></i> Connection error. Please try again.';
-                        alertBox.classList.add('alert-danger');
-                        alertBox.classList.remove('d-none');
-                    })
-                    .finally(() => {
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                    });
-            });
-        }
-        // Filter sections locally
-        function filterSections() {
-            const input = document.getElementById('sectionSearchInput');
-            const filter = input.value.toLowerCase().trim();
-            const table = document.querySelector('table'); // Targets the first table in the body
-            if (!table) return;
-            const tr = table.getElementsByTagName('tr');
-            const counter = document.getElementById('searchCounter');
-            let visibleCount = 0;
-
-            for (let i = 1; i < tr.length; i++) {
-                let rowMatch = false;
-                const tds = tr[i].getElementsByTagName('td');
-                for (let j = 0; j < tds.length; j++) {
-                    if (tds[j].textContent.toLowerCase().indexOf(filter) > -1) {
-                        rowMatch = true;
-                        break;
-                    }
-                }
-
-                if (rowMatch) {
-                    tr[i].style.display = "";
-                    visibleCount++;
-                } else {
-                    tr[i].style.display = "none";
-                }
+// AJAX Quick Subject Submission
+document.getElementById('quickSubjectForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const form = this;
+    const btn = form.querySelector('button[type="submit"]');
+    const originalText = btn.innerHTML;
+    const alertBox = document.getElementById('quickSubjectAlert');
+    
+    // Reset alert
+    alertBox.classList.add('d-none');
+    alertBox.classList.remove('alert-success', 'alert-danger');
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
+    
+    const formData = new FormData(form);
+    
+    fetch('ajax/quick_subject.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 1. Show success in modal
+            alertBox.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+            alertBox.classList.add('alert-success');
+            alertBox.classList.remove('d-none');
+            
+            // 2. Append new option to BOTH course_id selects
+            const newOption = new Option(data.display, data.course_id);
+            const addSelect = document.querySelector('select[name="course_id"]');
+            const editSelect = document.getElementById('edit_course_id');
+            
+            if (addSelect) {
+                addSelect.add(newOption.cloneNode(true));
+                addSelect.value = data.course_id;
             }
-
-            if (filter === "") {
-                counter.textContent = "";
-            } else {
-                counter.textContent = visibleCount + " found";
-            }
-        }
-    </script>
-
-    <script>
-        // Robust modal backdrop and z-index cleanup to avoid frozen UI
-        document.addEventListener('DOMContentLoaded', function () {
-            // Ensure any stray backdrops are removed on load
+            if (editSelect) editSelect.add(newOption.cloneNode(true));
+            
+            // 3. Delayed closing
             setTimeout(() => {
-                const anyModalShowing = document.querySelectorAll('.modal.show').length > 0;
-                if (!anyModalShowing) {
-                    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                    document.body.classList.remove('modal-open');
-                    document.body.style.overflow = '';
-                    document.body.style.paddingRight = '';
-                }
-            }, 40);
-
-            // When any modal is hidden, clean up leftovers after a small delay
-            document.querySelectorAll('.modal').forEach(modalEl => {
-                modalEl.addEventListener('hidden.bs.modal', function () {
-                    setTimeout(() => {
-                        // If no other modal is open, remove backdrops and restore body
-                        if (!document.querySelector('.modal.show')) {
-                            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                            document.body.classList.remove('modal-open');
-                            document.body.style.overflow = '';
-                            document.body.style.paddingRight = '';
-                        }
-                    }, 50);
-                });
-
-                // Adjust z-index when a modal is shown to keep it above backdrop
-                modalEl.addEventListener('shown.bs.modal', function () {
-                    setTimeout(() => {
-                        document.querySelectorAll('.modal-backdrop').forEach(b => b.style.zIndex = '1040');
-                        modalEl.style.zIndex = 1050;
-                    }, 10);
-                });
-            });
-
-            // Force cleanup on visibility change (when user returns to tab)
-            document.addEventListener('visibilitychange', function () {
-                if (document.visibilityState === 'visible') {
-                    setTimeout(() => {
-                        if (!document.querySelector('.modal.show')) {
-                            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                            document.body.classList.remove('modal-open');
-                            document.body.style.overflow = '';
-                            document.body.style.paddingRight = '';
-                        }
-                    }, 100);
-                }
-            });
-        });
-    </script>
-
-    <!-- Bulk Generate Modal -->
-    <div class="modal fade" id="bulkGenerateModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <form id="bulkGenerateForm" onsubmit="submitBulkGenerate(event, this)">
-                    <?php csrfField(); ?>
-                    <div class="modal-header modal-premium-header gradient-navy py-3 px-4 border-0 rounded-top-4">
-                        <h5 class="modal-title fw-bold text-white d-flex align-items-center">
-                            <i class="fas fa-magic me-3 text-warning shadow-sm p-2 rounded-circle"
-                                style="background: rgba(255,255,255,0.1);"></i>
-                            Bulk Generate Sections
-                        </h5>
-                        <button type="button" class="btn-close btn-close-white opacity-75"
-                            data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body p-3 px-md-4 bg-light" style="max-height: 80vh; overflow-y: auto;">
-                        <div class="alert alert-info py-2 small mb-4">
-                            <i class="fas fa-info-circle me-1"></i> This will automatically create "Section A" for all
-                            active courses. Existing sections for the same School Year and Semester will be skipped.
-                        </div>
-
-                        <div class="premium-input-group mb-4">
-                            <label>School Year</label>
-                            <div class="input-wrapper position-relative">
-                                <input type="text" name="school_year" class="form-control bg-white shadow-sm border-0"
-                                    style="padding-left: 2.75rem; height: 2.85rem; border-radius: 0.75rem;"
-                                    value="<?php echo getSetting('academic_year', '2024-2025'); ?>" required>
-                                <i class="fas fa-calendar-alt text-primary position-absolute"
-                                    style="left: 1.25rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem;"></i>
-                            </div>
-                        </div>
-
-                        <div class="premium-input-group mb-4">
-                            <label>Semester</label>
-                            <div class="input-wrapper position-relative">
-                                <select name="semester" class="form-select bg-white shadow-sm border-0"
-                                    style="padding-left: 2.75rem; height: 2.85rem; border-radius: 0.75rem;" required>
-                                    <option value="1st" <?php echo getSetting('current_semester', '1st') === '1st' ? 'selected' : ''; ?>>1st Semester</option>
-                                    <option value="2nd" <?php echo getSetting('current_semester', '1st') === '2nd' ? 'selected' : ''; ?>>2nd Semester</option>
-                                    <option value="Summer" <?php echo getSetting('current_semester', '1st') === 'Summer' ? 'selected' : ''; ?>>Summer</option>
-                                </select>
-                                <i class="fas fa-hourglass-half text-primary position-absolute"
-                                    style="left: 1.25rem; top: 50%; transform: translateY(-50%); font-size: 1.2rem;"></i>
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        class="modal-footer bg-white border-top-0 py-3 px-4 px-md-5 rounded-bottom-4 d-flex justify-content-between">
-                        <button type="button" class="btn-premium-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" id="btnBulkSubmit" class="btn-premium-action px-5">
-                            <i class="fas fa-magic"></i> Generate Now
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        function submitBulkGenerate(e, form) {
-            e.preventDefault();
-            const btn = document.getElementById('btnBulkSubmit');
-            const originalContent = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing...';
-
-            const formData = new FormData(form);
-
-            fetch('ajax/bulk_generate_sections.php', {
-                method: 'POST',
-                body: formData
-            })
-                .then(response => {
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    return response.json();
-                })
-                .then(data => {
-                    if (data.success) {
-                        // Close modal and clean up backdrop
-                        const modalEl = document.getElementById('bulkGenerateModal');
-                        const modal = bootstrap.Modal.getInstance(modalEl);
-                        if (modal) modal.hide();
-
-                        // Force cleanup after modal closes
-                        setTimeout(() => {
-                            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
-                            document.body.classList.remove('modal-open');
-                            document.body.style.overflow = '';
-                            alert(data.message);
-                            location.reload();
-                        }, 200);
-                    } else {
-                        throw new Error(data.message || 'Unknown error occurred');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    btn.disabled = false;
-                    btn.innerHTML = originalContent;
-                    alert("Error: " + (error.message || "An error occurred. Check console for details."));
-                });
+                const quickModalEl = document.getElementById('quickCourseModal');
+                const quickModal = bootstrap.Modal.getInstance(quickModalEl);
+                if (quickModal) quickModal.hide();
+                
+                form.reset();
+                alertBox.classList.add('d-none');
+                
+                // 4. Re-open addModal with slight delay
+                setTimeout(() => {
+                    const addModal El = document.getElementById('addModal');
+                    const addModal = new bootstrap.Modal(addModalEl);
+                    addModal.show();
+                }, 400);
+            }, 1000);
+            
+        } else {
+            alertBox.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + data.message;
+            alertBox.classList.add('alert-danger');
+            alertBox.classList.remove('d-none');
         }
-
-        function openQuickCourse() {
-            // Hide the primary modal
-            const addModalEl = document.getElementById('addModal');
-            if (addModalEl) {
-                const addModal = bootstrap.Modal.getInstance(addModalEl);
-                if (addModal) {
-                    addModal.hide();
-                }
-            }
-
-            // Show the secondary modal
-            const quickModalEl = document.getElementById('quickCourseModal');
-            if (quickModalEl) {
-                let quickModal = bootstrap.Modal.getInstance(quickModalEl);
-                if (!quickModal) {
-                    quickModal = new bootstrap.Modal(quickModalEl);
-                }
-                quickModal.show();
-            }
-        }
-    </script>
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alertBox.innerHTML = '<i class="fas fa-times-circle me-2"></i> Connection error. Please try again.';
+        alertBox.classList.add('alert-danger');
+        alertBox.classList.remove('d-none');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    });
+});
+</script>
 
     <!-- Quick Create Subject Modal -->
     <div class="modal fade" id="quickCourseModal" tabindex="-1">

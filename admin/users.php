@@ -222,7 +222,6 @@ $users = $conn->query("
     LEFT JOIN instructors i ON u.user_id = i.user_id
     LEFT JOIN departments d ON u.dept_id = d.dept_id
     ORDER BY u.created_at DESC
-    LIMIT 500
 ");
 
 // === STEP 4: NOW output HTML ===
@@ -341,9 +340,9 @@ endif; ?>
                                         <i class="fas fa-user-circle fa-lg"></i>
                                     <?php endif; ?>
                                 </div>
-                                <div>
-                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars($user['display_name'] ?? 'N/A'); ?></div>
-                                    <div class="text-muted" style="font-size: 0.75rem;">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></div>
+                                <div class="d-flex flex-column">
+                                    <span class="identity-name"><?php echo htmlspecialchars($user['display_name'] ?? 'N/A'); ?></span>
+                                    <span class="identity-meta">@<?php echo htmlspecialchars($user['username'] ?? ''); ?></span>
                                 </div>
                             </div>
                         </td>

@@ -8,19 +8,20 @@ $conn = getDBConnection();
 $stats = [];
 $stats['total_students'] = $conn->query("SELECT COUNT(*) as c FROM students WHERE status = 'active'")->fetch_assoc()['c'];
 $stats['total_instructors'] = $conn->query("SELECT COUNT(*) as c FROM instructors WHERE status = 'active'")->fetch_assoc()['c'];
-$stats['total_courses'] = $conn->query("SELECT COUNT(*) as c FROM courses WHERE status = 'active'")->fetch_assoc()['c'];
+$stats['total_courses'] = $conn->query("SELECT COUNT(*) as c FROM curriculum WHERE status = 'active'")->fetch_assoc()['c'];
 $stats['total_enrollments'] = $conn->query("SELECT COUNT(*) as c FROM enrollments WHERE status = 'enrolled'")->fetch_assoc()['c'];
 $stats['approved_grades'] = $conn->query("SELECT COUNT(*) as c FROM grades WHERE status = 'approved'")->fetch_assoc()['c'];
 
 // Top performing students (GWA)
 $topStudents = $conn->query("
     SELECT s.student_no, CONCAT(s.first_name, ' ', s.last_name) as name,
-           SUM(g.grade * c.units) / NULLIF(SUM(c.units), 0) as gwa
+           SUM(g.grade * subj.units) / NULLIF(SUM(subj.units), 0) as gwa
     FROM students s
     JOIN grades g ON s.student_id = g.student_id
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     WHERE g.status = 'approved'
     GROUP BY s.student_id
     ORDER BY gwa ASC

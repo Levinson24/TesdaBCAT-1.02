@@ -44,7 +44,7 @@ if (!file_exists($targetDir)) {
 }
 
 // Upload file using existing helper
-$uploadResult = uploadFile($_FILES['profile_image'], $targetDir, ['jpg', 'jpeg', 'png']);
+$uploadResult = uploadFile($_FILES['profile_image'], $targetDir, ['jpg', 'jpeg', 'png', 'webp']);
 
 if ($uploadResult[0]) {
     $filename = $uploadResult[2];

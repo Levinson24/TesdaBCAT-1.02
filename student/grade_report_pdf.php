@@ -36,17 +36,18 @@ $studentId = $student['student_id'];
 
 // Get all approved grades, grouped by semester/year
 $gradesStmt = $conn->prepare("
-    SELECT c.course_code, c.course_name, c.units,
+    SELECT subj.subject_id as course_code, subj.subject_name as course_name, subj.units,
            cs.semester, cs.school_year,
-           g.midterm, g.final, g.grade, g.remarks,
+           g.grade, g.remarks,
            CONCAT(i.last_name, ', ', i.first_name) AS instructor_name
     FROM grades g
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     WHERE g.student_id = ? AND g.status = 'approved'
-    ORDER BY cs.school_year, cs.semester, c.course_code
+    ORDER BY cs.school_year, cs.semester, subj.subject_id
 ");
 $gradesStmt->bind_param("i", $studentId);
 $gradesStmt->execute();
@@ -70,8 +71,8 @@ logAudit($studentUserId, 'DOWNLOAD_GRADE_REPORT', 'students', $studentId, null, 
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Grade Report — <?php echo htmlspecialchars($studentName); ?></title>
+    <title>Grade Report - <?php echo htmlspecialchars($studentName); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
     <style>
         @page { size: A4; margin: 10mm; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -192,8 +193,7 @@ logAudit($studentUserId, 'DOWNLOAD_GRADE_REPORT', 'students', $studentId, null, 
                     <th>Code</th>
                     <th>Subject</th>
                     <th style="text-align:center;">Units</th>
-                    <th style="text-align:center;">Midterm</th>
-                    <th style="text-align:center;">Final</th>
+                    <!-- Removed Midterm/Final -->
                     <th style="text-align:center;">Grade</th>
                     <th>Remarks</th>
                 </tr>
@@ -210,8 +210,7 @@ logAudit($studentUserId, 'DOWNLOAD_GRADE_REPORT', 'students', $studentId, null, 
                     <td><?php echo htmlspecialchars($g['course_code']); ?></td>
                     <td><?php echo htmlspecialchars($g['course_name']); ?></td>
                     <td style="text-align:center;"><?php echo $g['units']; ?></td>
-                    <td style="text-align:center;"><?php echo $g['midterm'] ?? '—'; ?></td>
-                    <td style="text-align:center;"><?php echo $g['final'] ?? '—'; ?></td>
+                    <!-- Removed Midterm/Final -->
                     <td style="text-align:center;font-weight:bold;"><?php echo $g['grade'] ?? '—'; ?></td>
                     <td class="<?php echo $remarkClass; ?>"><?php echo htmlspecialchars($g['remarks'] ?? '—'); ?></td>
                 </tr>

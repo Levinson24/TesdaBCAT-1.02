@@ -15,13 +15,14 @@ elseif ($filter === 'approved')
 
 $grades = $conn->query("
     SELECT g.*, s.student_no, CONCAT(s.first_name, ' ', s.last_name) as student_name,
-           c.course_code, c.course_name, cs.section_name, cs.semester, cs.school_year,
+           subj.subject_id as course_code, subj.subject_name as course_name, cs.section_name, cs.semester, cs.school_year,
            CONCAT(i.first_name, ' ', i.last_name) as instructor_name
     FROM grades g
     JOIN students s ON g.student_id = s.student_id
     JOIN enrollments e ON g.enrollment_id = e.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects subj ON cur.subject_id = subj.subject_id
     JOIN instructors i ON cs.instructor_id = i.instructor_id
     WHERE 1=1 $where
     ORDER BY g.submitted_at DESC

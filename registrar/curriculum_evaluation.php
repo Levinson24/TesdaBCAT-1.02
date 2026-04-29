@@ -45,11 +45,12 @@ $grades_stmt = $conn->prepare("
            -- But typically curriculum models have year/sem. We'll use the course's year/sem if available
            -- or fallback to a default.
            1 as year_level 
-    FROM grades g
-    JOIN enrollments e ON g.enrollment_id = e.enrollment_id
+    FROM enrollments e
+    LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
-    WHERE g.student_id = ?
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
+    WHERE e.student_id = ?
     ORDER BY year_level ASC, sem_num ASC, c.course_code ASC
 ");
 $grades_stmt->bind_param("i", $studentId);
@@ -72,19 +73,28 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Curriculum Evaluation - <?php echo htmlspecialchars($student['last_name']); ?> - <?php echo htmlspecialchars($schoolName); ?></title>
+    <title>Curriculum Evaluation - <?php echo htmlspecialchars($student['last_name']); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
+    <!-- Import Premium Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        :root {
+            --navy-blue: #0038A8;
+            --accent-navy: #002366;
+        }
         @page {
             size: A4;
             margin: 0.5in;
         }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Outfit', system-ui, -apple-system, sans-serif !important;
             font-size: 10pt;
-            line-height: 1.3;
-            color: #333;
+            line-height: 1.4;
+            color: #1e293b;
             margin: 0;
             padding: 0;
+            background: #f8fafc;
         }
         .container {
             width: 100%;
@@ -97,15 +107,16 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             align-items: center;
             justify-content: center;
             text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #1a4d8c;
-            padding-bottom: 15px;
+            margin-bottom: 25px;
+            border-bottom: 3px solid var(--navy-blue);
+            padding-bottom: 20px;
         }
         .header h1 {
-            font-size: 18pt;
+            font-size: 20pt;
             margin: 0;
-            color: #1a4d8c;
+            color: var(--navy-blue);
             text-transform: uppercase;
+            font-weight: 800;
         }
         .header h2 {
             font-size: 12pt;
@@ -131,8 +142,8 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             margin-bottom: 5px;
         }
         .info-label {
-            font-weight: bold;
-            color: #1a4d8c;
+            font-weight: 700;
+            color: var(--navy-blue);
             width: 140px;
             display: inline-block;
         }
@@ -150,9 +161,9 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             word-wrap: break-word;
         }
         .curriculum-table th {
-            background-color: #1a4d8c;
+            background-color: var(--navy-blue);
             color: white;
-            font-weight: bold;
+            font-weight: 700;
             text-transform: uppercase;
         }
         .year-sem-header {
@@ -266,9 +277,9 @@ $schoolAddress = getSetting('school_address', 'Allen, Northern Samar');
             <img src="../tesda_logo.png" alt="TESDA" style="max-height: 80px; margin-left: 20px;">
         </div>
 
-        <div class="text-center mb-4" style="text-align: center; margin-bottom: 20px;">
-            <h2 style="font-size: 14pt; margin: 10px 0; font-weight: 800; letter-spacing: 1px; color: #333;">OFFICIAL CURRICULUM EVALUATION RECORD</h2>
-            <div class="dept-title" style="font-weight: bold; font-size: 13pt; color: #1a4d8c; text-transform: uppercase;">
+        <div class="text-center mb-4" style="text-align: center; margin-bottom: 25px;">
+            <h2 style="font-size: 16pt; margin: 10px 0; font-weight: 800; letter-spacing: 1.5px; color: #1e293b;">OFFICIAL CURRICULUM EVALUATION RECORD</h2>
+            <div class="dept-title" style="font-weight: 800; font-size: 14pt; color: var(--navy-blue); text-transform: uppercase;">
                 <?php echo htmlspecialchars($student['dept_name'] ?? 'DIPLOMA PROGRAM'); ?>
             </div>
         </div>
@@ -331,8 +342,10 @@ else: ?>
 ?>
                             <?php foreach ($subjects as $s): ?>
                                 <?php
-                $row_total_hrs = $s['lec_hrs'] + $s['lab_hrs'];
-                $row_total_units = $s['lec_units'] + $s['lab_units'];
+                $l_hrs = $s['lec_hrs'] > 0 ? $s['lec_hrs'] : $s['total_units'];
+                $row_total_hrs = $l_hrs + $s['lab_hrs'];
+                $l_units = $s['lec_units'] > 0 ? $s['lec_units'] : $s['total_units'];
+                $row_total_units = $l_units + $s['lab_units'];
 
                 $sem_lec_hrs += $s['lec_hrs'];
                 $sem_lab_hrs += $s['lab_hrs'];

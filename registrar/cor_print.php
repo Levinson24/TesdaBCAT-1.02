@@ -80,12 +80,18 @@ $currentSemester = getSetting('current_semester', '1st');
 $academicYear = getSetting('academic_year', '2024-2025');
 $userId = getCurrentUserId();
 
-// Record COR generation
+// Record COR generation (Safe Execution)
 $stmt = $conn->prepare("INSERT INTO cors (student_id, semester, school_year, generated_by) VALUES (?, ?, ?, ?)");
-$stmt->bind_param("issi", $studentId, $currentSemester, $academicYear, $userId);
-$stmt->execute();
-$corId = $stmt->insert_id;
-$stmt->close();
+if ($stmt) {
+    if (!$stmt->bind_param("issi", $studentId, $currentSemester, $academicYear, $userId) || !$stmt->execute()) {
+        error_log("COR Insertion Error: " . ($stmt->error ?: 'Unknown'));
+    }
+    $corId = $stmt->insert_id ?: time(); // Fallback ID if insert fails
+    $stmt->close();
+} else {
+    error_log("COR Prepared Statement Failed: " . $conn->error);
+    $corId = time(); // Total fallback
+}
 
 // Generate Verification Hash (using a secret salt)
 $vHash = hash('sha256', 'BCAT_COR_' . $corId);
@@ -108,10 +114,14 @@ $stmt = $conn->prepare("
         cs.semester,
         cs.school_year,
         cs.schedule,
-        cs.room
+        cs.room,
+        g.grade,
+        g.remarks
     FROM enrollments e
     JOIN class_sections cs ON e.section_id = cs.section_id
-    JOIN courses c ON cs.course_id = c.course_id
+    JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects c ON cur.subject_id = c.subject_id
+    LEFT JOIN grades g ON e.enrollment_id = g.enrollment_id
     WHERE e.student_id = ? 
     AND cs.semester = ? 
     AND cs.school_year = ?
@@ -130,11 +140,9 @@ $stmt->close();
 
 $periodTitle = strtoupper($currentSemester . " Semester, SY " . $academicYear);
 
-// --- Pagination Logic (Dynamic 10-row chunks) ---
-$rowsPerPage = 8;
-$pages = array_chunk($enrollments, $rowsPerPage);
-if (empty($pages)) $pages = [[]]; // Ensure at least one page
-$totalPageCount = count($pages);
+// --- Single-Page Rendering (No Chunking) ---
+$pageEnrollments = $enrollments;
+$totalPageCount = 1;
 
 // Reusable Document Components
 function renderDocumentHeader($schoolName, $schoolRegion, $schoolAddress) {
@@ -145,9 +153,9 @@ function renderDocumentHeader($schoolName, $schoolRegion, $schoolAddress) {
         </div>
         <div class="header-text text-center mx-3" style="flex: 1;">
             <h6 class="mb-0 text-uppercase fw-normal small" style="letter-spacing: 1px; color: #64748b;">Republic of the Philippines</h6>
-            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #1e293b;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
+            <h6 class="mb-1 fw-bold" style="font-size: 0.95rem; color: #0038A8;">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY</h6>
             <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolRegion); ?></h6>
-            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0f172a; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
+            <h4 class="mb-1 mt-1" style="font-weight: 800; color: #0038A8; letter-spacing: -0.5px;"><?php echo htmlspecialchars($schoolName); ?></h4>
             <h6 class="mb-0 text-muted small"><?php echo htmlspecialchars($schoolAddress); ?></h6>
         </div>
         <div class="header-logo">
@@ -171,7 +179,7 @@ function renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verify
                     <div>
                         <div class="fw-bold text-dark small">DOCUMENT VERIFICATION</div>
                         <div class="text-muted small" style="font-size: 0.65rem;">Scan QR to verify this official Certificate of Registration.</div>
-                        <div class="fw-bold text-primary small">REF: COR-<?php echo str_pad($corId, 8, '0', STR_PAD_LEFT); ?></div>
+                        <div class="fw-bold text-primary small" style="color: #0038A8 !important;">REF: COR-<?php echo str_pad($corId, 8, '0', STR_PAD_LEFT); ?></div>
                     </div>
                 </div>
             </div>
@@ -180,11 +188,11 @@ function renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verify
                     <div class="card-body p-2">
                         <div class="d-flex justify-content-between border-bottom pb-1 mb-1">
                             <span class="fw-bold small">Total Units:</span>
-                            <span class="fw-bold text-primary"><?php echo $finalTotalUnits; ?></span>
+                            <span class="fw-bold text-primary" style="color: #0038A8 !important;"><?php echo $finalTotalUnits; ?></span>
                         </div>
                         <div class="d-flex justify-content-between">
                             <span class="fw-bold small">GWA:</span>
-                            <span class="fw-bold text-primary"><?php echo number_format($gwa, 2); ?></span>
+                            <span class="fw-bold text-primary" style="color: #0038A8 !important;"><?php echo number_format($gwa, 2); ?></span>
                         </div>
                     </div>
                 </div>
@@ -193,17 +201,17 @@ function renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verify
 
         <div class="row mt-3 g-2">
             <div class="col-4 text-center">
-                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div style="border-bottom: 2px solid #0038A8; width: 85%; margin: 35px auto 6px auto;"></div>
                 <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo $fullName; ?></div>
                 <div class="text-muted" style="font-size: 0.65rem;">Student Signature</div>
             </div>
             <div class="col-4 text-center">
-                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div style="border-bottom: 2px solid #0038A8; width: 85%; margin: 35px auto 6px auto;"></div>
                 <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo htmlspecialchars($deptHeadName); ?></div>
                 <div class="text-muted" style="font-size: 0.65rem;">Department Head / Dean</div>
             </div>
             <div class="col-4 text-center">
-                <div style="border-bottom: 2px solid #1e293b; width: 85%; margin: 35px auto 6px auto;"></div>
+                <div style="border-bottom: 2px solid #0038A8; width: 85%; margin: 35px auto 6px auto;"></div>
                 <div class="fw-bold text-uppercase" style="font-size: 0.70rem;"><?php echo htmlspecialchars($registrarName); ?></div>
                 <div class="text-muted" style="font-size: 0.65rem;"><?php echo htmlspecialchars($registrarPosition); ?> / Authorized Officer</div>
             </div>
@@ -217,14 +225,8 @@ function renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verify
         </div>
         <?php endif; ?>
 
-        <div class="d-flex justify-content-center align-items-center text-center text-muted small border-top pt-2 mt-2">
-            <div style="width: 50px; height: 50px; border: 1.5px dashed #cbd5e0; display: flex; align-items: center; justify-content: center; font-size: 0.55rem; font-weight: bold; color: #94a3b8; margin-right: 12px; border-radius: 4px; line-height: 1.1;">
-                DRY<br>SEAL
-            </div>
-            <div class="text-start">
-                <strong>REMINDER:</strong> NOT VALID without official dry seal.<br>
-                <span>Date Generated: <?php echo date('M d, Y h:i A'); ?></span>
-            </div>
+        <div class="text-center text-muted small border-top pt-2 mt-2">
+            <span>Date Generated: <?php echo date('M d, Y h:i A'); ?></span>
         </div>
     </div>
 <?php
@@ -243,29 +245,30 @@ $gwa = calculateGWA($studentId);
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>COR - <?php echo htmlspecialchars($student['student_no']); ?></title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>COR - <?php echo htmlspecialchars($student['student_no']); ?> - TESDA-BCAT GMS</title>
+    <link rel="icon" href="../BCAT logo 2024.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f1f5f9; padding: 20px; font-family: 'Inter', sans-serif; }
+        body { background-color: #f1f5f9; padding: 20px; font-family: 'Outfit', sans-serif !important; }
         .cor-container {
-            max-width: 900px;
+            width: 210mm;
+            min-height: 279.4mm; /* Letter height to fit both A4 and Short Bond */
             margin: 30px auto;
             background: white;
-            padding: 40px;
+            padding: 25px 35px;
             border-radius: 0.75rem;
             box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
-            min-height: 297mm;
             display: flex;
             flex-direction: column;
             position: relative;
         }
-        .header-logo img { max-height: 80px; }
-        .official-title { font-weight: 800; letter-spacing: 1px; border-bottom: 2px solid #0d6efd; display: inline-block; padding-bottom: 5px; }
-        .info-label { font-weight: 600; color: #64748b; width: 120px; display: inline-block; }
-        .info-value { font-weight: 700; border-bottom: 1.5px dotted #cbd5e0; flex-grow: 1; padding-left: 5px; }
-        .table thead th { background: #2d3748; color: white; font-size: 0.75rem; text-transform: uppercase; padding: 6px 4px; border: none; }
-        .table td { font-size: 0.85rem; padding: 4px 6px; }
+        .header-logo img { max-height: 70px; }
+        .official-title { font-weight: 800; letter-spacing: 1px; border-bottom: 2px solid #0038A8; display: inline-block; padding-bottom: 5px; }
+        .info-label { font-weight: 600; color: #64748b; width: 110px; display: inline-block; font-size: 0.8rem; }
+        .info-value { font-weight: 700; border-bottom: 1.5px dotted #cbd5e0; flex-grow: 1; padding-left: 5px; font-size: 0.8rem; }
+        .table thead th { background: #2d3748; color: white; font-size: 0.65rem; text-transform: uppercase; padding: 4px 3px !important; border: none; }
+        .table td { font-size: 0.70rem; padding: 3px 4px !important; }
         .cor-container { position: relative; }
         .watermark {
             position: absolute;
@@ -274,14 +277,14 @@ $gwa = calculateGWA($studentId);
             transform: translate(-50%, -50%);
             width: 500px;
             height: auto;
-            opacity: 0.05;
+            opacity: 0.08;
             pointer-events: none;
             z-index: 0;
             user-select: none;
         }
         .header-double-line {
-            border-top: 2px solid #1e293b;
-            border-bottom: 1px solid #1e293b;
+            border-top: 2px solid #0038A8;
+            border-bottom: 1px solid #0038A8;
             height: 4px;
             margin: 10px 0 15px 0;
         }
@@ -290,10 +293,17 @@ $gwa = calculateGWA($studentId);
             body { padding: 0; background: white; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .cor-container { 
                 box-shadow: none; 
-                margin: 0; 
+                margin: 0 auto !important; 
                 border-radius: 0; 
-                padding: 8mm 12mm; 
-                width: 100%;
+                padding: 8mm 12mm !important; 
+                width: 210mm !important;
+                max-width: 210mm !important;
+                min-height: auto;
+                height: auto;
+                overflow: visible !important;
+            }
+            html, body { overflow-x: hidden !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
+            footer, .no-print { display: none !important; }
                 min-height: auto;
                 height: auto;
                 overflow: hidden;
@@ -301,7 +311,7 @@ $gwa = calculateGWA($studentId);
             .no-print { display: none !important; }
             .official-title { font-size: 1.1rem !important; }
             .badge { border: 1px solid #000; color: #000 !important; }
-            @page { margin: 5mm; size: auto; }
+            @page { margin: 0; size: auto; }
         }
     </style>
 </head>
@@ -311,11 +321,11 @@ $gwa = calculateGWA($studentId);
         <button class="btn btn-primary px-4" onclick="window.print()"><i class="fas fa-print me-2"></i> Print COR</button>
     </div>
 
-    <?php foreach ($pages as $pIndex => $pageEnrollments): 
-        $pageNumber = $pIndex + 1;
-        $isLastPage = ($pageNumber === $totalPageCount);
+    <?php 
+        $pageNumber = 1;
+        $isLastPage = true;
     ?>
-    <div class="cor-container" style="<?php echo $pageNumber < $totalPageCount ? 'page-break-after: always;' : ''; ?>; <?php echo $pageNumber > 1 ? 'margin-top: 50px;' : ''; ?>">
+    <div class="cor-container" style="min-height: 250mm;">
         <img src="../BCAT logo 2024.png" class="watermark" alt="BCAT Watermark">
         
         <?php renderDocumentHeader($schoolName, $schoolRegion, $schoolAddress); ?>
@@ -367,11 +377,12 @@ $gwa = calculateGWA($studentId);
         <table class="table table-bordered mt-2 table-record">
             <thead>
                 <tr>
-                    <th width="12%">Class Code</th>
-                    <th width="15%">Course Code</th>
-                    <th width="40%">Subject Description</th>
+                    <th width="10%">Class Code</th>
+                    <th width="12%">Course Code</th>
+                    <th width="35%">Subject Description</th>
                     <th width="23%">Schedule / Room</th>
-                    <th class="text-center" width="10%">Units</th>
+                    <th class="text-center" width="8%">Units</th>
+                    <th class="text-center" width="12%">Grade</th>
                 </tr>
             </thead>
             <tbody>
@@ -391,6 +402,12 @@ $gwa = calculateGWA($studentId);
                         <div class="small text-muted"><?php echo htmlspecialchars($e['room'] ?? 'TBA'); ?></div>
                     </td>
                     <td class="text-center"><?php echo $e['units']; ?></td>
+                    <td class="text-center">
+                        <span class="fw-bold"><?php echo isset($e['grade']) ? number_format($e['grade'], 2) : '—'; ?></span>
+                        <?php if(!empty($e['remarks'])): ?>
+                            <div class="x-small text-muted" style="font-size: 0.65rem;"><?php echo htmlspecialchars($e['remarks']); ?></div>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php
                     endforeach; 
@@ -405,6 +422,6 @@ $gwa = calculateGWA($studentId);
         renderDocumentFooter($isLastPage, $totalPageCount, $pageNumber, $verifyUrl, $corId, $finalTotalUnits, $gwa, $fullName, $registrarName, $registrarPosition, $deptHeadName); 
         ?>
     </div>
-    <?php endforeach; ?>
+    <?php // endforeach; ?>
 </body>
 </html>

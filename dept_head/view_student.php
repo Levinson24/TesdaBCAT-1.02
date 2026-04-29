@@ -17,7 +17,7 @@ if (!$studentId) {
 
 // Fetch student details - scoped to department
 $stmt = $conn->prepare("
-    SELECT s.*, u.username, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
+    SELECT s.*, u.username, u.profile_image, d.title_diploma_program as dept_name, p.program_name as program_name, col.college_name
     FROM students s
     JOIN users u ON s.user_id = u.user_id
     LEFT JOIN departments d ON s.dept_id = d.dept_id
@@ -72,12 +72,16 @@ require_once '../includes/header.php';
 
 <div class="row">
     <!-- Left Column: Profile Card -->
-    <div class="col-lg-4">
+    <div class="col-12 col-lg-4">
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-body text-center p-4">
                 <div class="mb-3">
-                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 100px; height: 100px;">
-                        <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                    <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center overflow-hidden" style="width: 100px; height: 100px;">
+                        <?php if (!empty($student['profile_image'])): ?>
+                            <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($student['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                        <?php else: ?>
+                            <i class="fas fa-user-graduate fa-4x text-primary"></i>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <h4 class="mb-1"><?php echo htmlspecialchars(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')); ?></h4>

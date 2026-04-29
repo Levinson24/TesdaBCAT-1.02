@@ -59,8 +59,8 @@ A comprehensive web-based grade management system for TESDA-BCAT (Balicuatro Col
 2. Verify the database credentials:
    ```php
    define('DB_HOST', 'localhost');
-   define('DB_USER', 'root');
-   define('DB_PASS', 'Hiddenidentity10');
+   define('DB_USER', 'tesda_app_user');
+   define('DB_PASS', 'TesdaSecurePortal#2026');
    define('DB_NAME', 'tesda_db');
    ```
 3. Modify if your MySQL credentials are different
@@ -76,7 +76,8 @@ A comprehensive web-based grade management system for TESDA-BCAT (Balicuatro Col
 6. Verify that `tesda_db` database is created
 
 #### Option B: Using phpMyAdmin
-1. Open phpMyAdmin (http://localhost/phpmyadmin)
+1. Open your private database dashboard (**Note**: `phpmyadmin` alias has been renamed for security)
+   URL: `http://localhost:8080/portal_db_admin_2026/`
 2. Click "Import" tab
 3. Click "Choose File" and select `database_schema.sql`
 4. Click "Go" to execute
@@ -95,7 +96,7 @@ chmod 755 tesda_gms/uploads
 
 ### Step 5: Access the System
 1. Open your web browser
-2. Navigate to: `http://localhost/tesda_gms/`
+2. Navigate to: `http://localhost:8080/tesda_gms/`
 3. You should see the login page
 
 ---
@@ -374,7 +375,10 @@ For detailed, step-by-step instructions on handling grading workflows, enrollmen
    error_reporting(0);
    ```
 6. **SSL Certificate** for production deployment
-7. **Regular Security Audits** via audit_logs table
+7. **Directory Protection**: Never remove the `.htaccess` file, as it prevents direct browser access to sensitive system directories (`includes`, `config`, `migrations`).
+8. **Restricted DB Account**: The system uses a restricted non-root DB user (`tesda_app_user`). Do not use the `root` account for the application.
+9. **Hidden DB Dashboard**: The `phpmyadmin` dashboard is obfuscated behind a secret URL alias to prevent automated attacks.
+10. **Regular Security Audits** via audit_logs table
 
 ---
 

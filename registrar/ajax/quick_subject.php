@@ -50,27 +50,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $courseDeptId = $pRes['dept_id'] ?? $deptId;
     }
 
-    // Insert new course
-    $stmt = $conn->prepare("INSERT INTO courses (class_code, course_code, course_name, units, program_id, dept_id, status) VALUES (?, ?, ?, ?, ?, ?, 'active')");
-    $stmt->bind_param("sssiii", $classCode, $courseCode, $courseName, $units, $programId, $courseDeptId);
-    
+    $conn->begin_transaction();
     try {
-        if ($stmt->execute()) {
-            $newId = $conn->insert_id;
-            logAudit(getCurrentUserId(), 'CREATE', 'courses', $newId, null, "Quick created course: $courseCode via AJAX");
-            
-            echo json_encode([
-                'success' => true, 
-                'course_id' => $newId, 
-                'display' => "[$courseCode] $courseName",
-                'message' => 'Subject created successfully'
-            ]);
-        } else {
-            echo json_encode(['success' => false, 'message' => 'Error: ' . $conn->error]);
+        // 1. Ensure Subject exists (Using course_code as subject_id)
+        $checkSubj = $conn->prepare("SELECT subject_id FROM subjects WHERE subject_id = ?");
+        $checkSubj->bind_param("s", $courseCode);
+        $checkSubj->execute();
+        if ($checkSubj->get_result()->num_rows === 0) {
+            $insSubj = $conn->prepare("INSERT INTO subjects (subject_id, subject_name, units) VALUES (?, ?, ?)");
+            $insSubj->bind_param("ssi", $courseCode, $courseName, $units);
+            $insSubj->execute();
         }
-    } catch (mysqli_sql_exception $e) {
+
+        // 2. Create Curriculum entry
+        $stmt = $conn->prepare("INSERT INTO curriculum (class_code, subject_id, program_id, dept_id, status) VALUES (?, ?, ?, ?, 'active')");
+        $stmt->bind_param("ssii", $classCode, $courseCode, $programId, $courseDeptId);
+        $stmt->execute();
+        $newId = $conn->insert_id;
+        
+        $conn->commit();
+        logAudit(getCurrentUserId(), 'CREATE', 'curriculum', $newId, null, "Quick created curriculum entry for $courseCode via AJAX");
+        
+        echo json_encode([
+            'success' => true, 
+            'curriculum_id' => $newId, 
+            'display' => "[$courseCode] $courseName",
+            'message' => 'Subject created and assigned successfully'
+        ]);
+    } catch (Exception $e) {
+        $conn->rollback();
         $msg = (strpos($e->getMessage(), 'Duplicate entry') !== false) ? 'Duplicate entry detected.' : $e->getMessage();
-        echo json_encode(['success' => false, 'message' => 'Database Error: ' . $msg]);
+        echo json_encode(['success' => false, 'message' => 'Error: ' . $msg]);
     }
     exit;
 }

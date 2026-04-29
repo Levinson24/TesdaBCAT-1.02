@@ -2,14 +2,20 @@
 Options -Indexes
 
 # Block access to sensitive files and folders
-<FilesMatch "^\.|\.sql$|composer\.(json|lock)$|database\.php$">
+<FilesMatch "^\.|\.sql$|\.log$|composer\.(json|lock)$|database\.php$|schema_v.*\.php$|package(-lock)?\.json$">
     Order allow,deny
     Deny from all
 </FilesMatch>
 
-# Specifically protect the config directory
+# Specifically protect the core system directories (with exception for AJAX handlers)
 RewriteEngine On
 RewriteRule ^config/.*$ - [F,L]
+RewriteRule ^includes/ajax/ - [L]
+RewriteRule ^includes/.*$ - [F,L]
+RewriteRule ^migrations/.*$ - [F,L]
+RewriteRule ^logs/.*$ - [F,L]
+RewriteRule ^tmp.*/.*$ - [F,L]
+RewriteRule ^.*/.*\.(sql|bak|old|tmp)$ - [F,L]
 
 # Custom Error Documents (Optional but recommended)
 # ErrorDocument 403 /403.php

@@ -29,29 +29,6 @@ $students = $conn->query("
     ORDER BY s.student_no
 ");
 ?>
-
-<style>
-    .btn-premium-print {
-        width: 32px; height: 32px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        transition: all 0.2s;
-        border: none;
-        background-color: #f0f9ff;
-        color: #0369a1 !important;
-        cursor: pointer;
-        padding: 0;
-        text-decoration: none !important;
-    }
-    .btn-premium-print:hover {
-        background-color: #0369a1;
-        color: #fff !important;
-        box-shadow: 0 4px 6px rgba(3, 105, 161, 0.2);
-    }
-</style>
-
 <div class="row">
     <div class="col-12 mb-4">
         <div class="card premium-card mb-4 shadow-sm border-0">
@@ -61,7 +38,7 @@ $students = $conn->query("
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 premium-table data-table">
                         <thead class="table-light">
                             <tr>
                                 <th class="ps-4 border-0">Student No</th>

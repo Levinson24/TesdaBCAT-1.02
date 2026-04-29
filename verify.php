@@ -107,7 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ref_id'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Verification - TESDA-BCAT</title>
+    <title>Document Verification - TESDA-BCAT GMS</title>
+    <link rel="icon" href="BCAT logo 2024.png" type="image/png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -138,6 +139,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ref_id'])) {
         }
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(100, 116, 139, 0.7);
+        }
+
+        /* ──── PREMIUM MODAL STYLES ──── */
+        .modal-content.premium-modal {
+            border: none;
+            border-radius: 1.5rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            overflow: hidden;
+        }
+        .modal-header.premium-modal-header {
+            background: linear-gradient(135deg, #0038A8 0%, #001a4d 100%);
+            color: white;
+            border-bottom: none;
+            padding: 2.5rem 2rem 1.5rem;
+            position: relative;
+        }
+        .premium-modal-body {
+            padding: 2rem;
+        }
+        /* Confetti Canvas */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1060; /* Above modal backdrop */
         }
     </style>
 </head>
@@ -253,6 +282,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ref_id'])) {
         </div>
     </div>
 </div>
+
+<!-- Premium Verification Modal -->
+<div class="modal fade" id="verificationModal" tabindex="-1" aria-labelledby="verificationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content premium-modal">
+      <div class="modal-header premium-modal-header d-flex flex-column align-items-center text-center">
+        <!-- Close button (x) -->
+        <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close"></button>
+
+        <div class="d-inline-block p-3 rounded-circle bg-white mb-3 shadow-sm">
+            <i class="fas fa-check-circle fa-4x text-success"></i>
+        </div>
+        <h4 class="modal-title fw-bold" id="verificationModalLabel">VERIFIED AUTHENTIC</h4>
+        <p class="text-white-50 mb-0 small px-3">This document is a legitimate record issued by BCAT Registrar.</p>
+      </div>
+      <div class="modal-body premium-modal-body">
+        <?php if ($isVerified && $document): ?>
+            <div class="bg-light p-4 rounded-4 border mb-2">
+                <label class="text-muted small text-uppercase fw-bold mb-1">Student Name</label>
+                <h5 class="fw-bold mb-3 text-primary"><?php echo htmlspecialchars(strtoupper($document['last_name'] . ', ' . $document['first_name'])); ?></h5>
+                
+                <div class="row">
+                    <div class="col-6 mb-3">
+                        <label class="text-muted small text-uppercase fw-bold mb-1">Student No</label>
+                        <div class="fw-bold text-dark"><?php echo htmlspecialchars($document['student_no']); ?></div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <label class="text-muted small text-uppercase fw-bold mb-1">Document Type</label>
+                        <div class="badge bg-primary fs-6"><?php echo htmlspecialchars($document['doc_type']); ?></div>
+                    </div>
+                </div>
+                
+                <label class="text-muted small text-uppercase fw-bold mb-1">Date Issued</label>
+                <div class="fw-bold text-dark"><?php echo date('F d, Y', strtotime($document['date_generated'])); ?></div>
+            </div>
+            
+            <div class="text-center mt-4">
+                <div class="text-muted small mb-3">System Reference Code: <strong class="text-dark bg-secondary bg-opacity-10 px-2 py-1 rounded"><?php echo str_pad($tid, 8, '0', STR_PAD_LEFT); ?></strong></div>
+                <button type="button" class="btn btn-primary w-100 rounded-pill py-3 fw-bold" data-bs-dismiss="modal">VIEW FULL DETAILS</button>
+            </div>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</div>
+
+<canvas id="confettiCanvas"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+<?php if ($isVerified && $document): ?>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var modalEl = document.getElementById('verificationModal');
+        var myModal = new bootstrap.Modal(modalEl, {
+            backdrop: 'static',
+            keyboard: false
+        });
+        
+        myModal.show();
+        
+        // Confetti Celebration Confined to canvas
+        var myCanvas = document.getElementById('confettiCanvas');
+        var myConfetti = confetti.create(myCanvas, {
+            resize: true,
+            useWorker: true
+        });
+
+        var duration = 3 * 1000;
+        var end = Date.now() + duration;
+
+        (function frame() {
+            myConfetti({
+                particleCount: 7,
+                angle: 60,
+                spread: 55,
+                origin: { x: 0 },
+                colors: ['#0038A8', '#facc15', '#ffffff'],
+                zIndex: 1060
+            });
+            myConfetti({
+                particleCount: 7,
+                angle: 120,
+                spread: 55,
+                origin: { x: 1 },
+                colors: ['#0038A8', '#facc15', '#ffffff'],
+                zIndex: 1060
+            });
+
+            if (Date.now() < end) {
+                requestAnimationFrame(frame);
+            }
+        }());
+    });
+</script>
+<?php endif; ?>
 
 </body>
 </html>

@@ -84,20 +84,27 @@ require_once '../includes/header.php';
 // Fetch courses for this department with enrollment stats and passing rates
 $query = "
     SELECT 
-        c.*,
+        cur.curriculum_id,
+        cur.class_code,
+        s.subject_id as course_code,
+        s.subject_name as course_name,
+        s.units,
+        s.course_type,
+        cur.status,
         (SELECT COUNT(DISTINCT e.student_id) 
          FROM enrollments e 
          JOIN class_sections cs ON e.section_id = cs.section_id 
-         WHERE cs.course_id = c.course_id AND cs.status = 'active') as active_enrollees,
+         WHERE cs.curriculum_id = cur.curriculum_id AND cs.status = 'active') as active_enrollees,
         (SELECT ROUND(AVG(g.grade), 2) 
          FROM grades g 
          JOIN enrollments e ON g.enrollment_id = e.enrollment_id
          JOIN class_sections cs ON e.section_id = cs.section_id
-         WHERE cs.course_id = c.course_id AND g.status = 'approved' AND g.grade > 0) as avg_grade
-    FROM courses c
-    JOIN programs p ON c.program_id = p.program_id
+         WHERE cs.curriculum_id = cur.curriculum_id AND g.status = 'approved' AND g.grade > 0) as avg_grade
+    FROM curriculum cur
+    JOIN subjects s ON cur.subject_id = s.subject_id
+    JOIN programs p ON cur.program_id = p.program_id
     WHERE p.dept_id = ?
-    ORDER BY p.program_name, c.course_code ASC
+    ORDER BY p.program_name, s.subject_id ASC
 ";
 
 $stmt = $conn->prepare($query);
@@ -116,7 +123,7 @@ $courses = $stmt->get_result();
 </div>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+    <div class="card-header gradient-navy p-3 d-flex justify-content-between align-items-center rounded-top">
         <h5 class="mb-0 text-white fw-bold ms-2">
             <i class="fas fa-book me-2 text-info"></i> <?php echo htmlspecialchars($deptName); ?> - Course Catalog
         </h5>

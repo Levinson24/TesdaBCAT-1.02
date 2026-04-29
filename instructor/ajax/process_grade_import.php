@@ -57,24 +57,22 @@ if (!$handle) {
 fgetcsv($handle);
 
 $imported = 0;
-$mWeight = floatval(getSetting('midterm_weight', 0.5));
-$fWeight = floatval(getSetting('final_weight', 0.5));
 $passingGrade = floatval(getSetting('passing_grade', 3.00));
 
 while (($data = fgetcsv($handle)) !== FALSE) {
     if (count($data) < 5) continue;
 
     $enrollmentId = intval($data[0]);
-    $midterm = is_numeric($data[3]) ? floatval($data[3]) : null;
-    $final = is_numeric($data[4]) ? floatval($data[4]) : null;
-    $specialStatus = sanitizeInput($data[5] ?? '');
+    $midterm = null;
+    $final = null;
+    $finalGrade = is_numeric($data[3]) ? floatval($data[3]) : null;
+    $specialStatus = sanitizeInput($data[4] ?? '');
 
-    if ($specialStatus || ($midterm !== null && $final !== null)) {
+    if ($specialStatus || $finalGrade !== null) {
         if ($specialStatus) {
             $finalGrade = null;
             $remarks = $specialStatus;
         } else {
-            $finalGrade = ($midterm * $mWeight) + ($final * $fWeight);
             $remarks = getGradeRemark($finalGrade, $passingGrade);
         }
 

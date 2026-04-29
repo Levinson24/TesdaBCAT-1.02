@@ -52,10 +52,8 @@ require_once '../includes/header.php';
         background: #fff;
         overflow: hidden;
     }
-    .profile-card-header { background: #002366; color: white; }
-    .text-indigo { color: #0038A8; }
     .profile-sidebar {
-        background: linear-gradient(160deg, #002366 0%, #001a4d 100%);
+        background: linear-gradient(160deg, #0038A8 0%, #001a4d 100%);
         color: #fff;
         padding: 4rem 2rem;
         text-align: center;
@@ -65,7 +63,7 @@ require_once '../includes/header.php';
         content: '';
         position: absolute;
         top: 0; right: 0; bottom: 0; left: 0;
-        background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 86c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm66-3c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm-46-45c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm26 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm16 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z' fill='%23ffffff' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+        background: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 86c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm66-3c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zm-46-45c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm26 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1zm16 18c.552 0 1-.448 1-1s-.448-1-1-1-1 .448-1 1 .448 1 1 1z' fill='%23ffffff' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
         pointer-events: none;
     }
     .profile-avatar {
@@ -120,46 +118,6 @@ require_once '../includes/header.php';
         padding: 4rem;
         background: #fff;
     }
-    .form-group-custom {
-        margin-bottom: 2.5rem;
-    }
-    .form-label-custom {
-        font-weight: 700;
-        color: var(--text-muted);
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        margin-bottom: 0.75rem;
-        display: block;
-    }
-    .input-group-custom {
-        position: relative;
-    }
-    .input-group-custom .fas {
-        position: absolute;
-        left: 1.5rem;
-        top: 50%;
-        transform: translateY(-50%);
-        color: var(--primary-indigo);
-        z-index: 10;
-        opacity: 0.7;
-        font-size: 1.1rem;
-    }
-    .input-group-custom .form-control {
-        padding-left: 4rem;
-        height: 4rem;
-        border-radius: 1.25rem;
-        border: 2px solid #f1f5f9;
-        background-color: #f8fafc;
-        font-size: 1.05rem;
-        font-weight: 500;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    .input-group-custom .form-control:focus {
-        background-color: #fff;
-        border-color: var(--primary-indigo);
-        box-shadow: 0 10px 25px rgba(26, 58, 92, 0.12);
-    }
     .badge-status {
         font-size: 0.85rem;
         font-weight: 700;
@@ -168,19 +126,6 @@ require_once '../includes/header.php';
         background: rgba(255,255,255,0.15);
         border: 1px solid rgba(255,255,255,0.2);
         backdrop-filter: blur(5px);
-    }
-    .btn-save {
-        border-radius: 1.25rem;
-        padding: 1rem 3rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        font-size: 0.9rem;
-        box-shadow: 0 10px 25px rgba(26, 58, 92, 0.35);
-        transition: all 0.3s;
-    }
-    .btn-save:hover {
-        box-shadow: 0 15px 35px rgba(26, 58, 92, 0.45);
     }
 </style>
 
@@ -262,36 +207,36 @@ require_once '../includes/header.php';
                         
                         <form method="POST">
                             <?php csrfField(); ?>
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Official Username</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-id-badge"></i>
+                            <div class="premium-input-group mb-4">
+                                <label class="form-label mb-2">Official Username</label>
+                                <div class="input-wrapper">
                                     <input type="text" class="form-control" value="<?php echo htmlspecialchars($user['username'] ?? ''); ?>" disabled style="cursor: not-allowed; opacity: 0.7;">
+                                    <i class="fas fa-id-badge"></i>
                                 </div>
-                                <div class="form-text mt-2 ps-2"><i class="fas fa-lock me-1"></i> System-assigned names are fixed for security auditing.</div>
+                                <div class="form-text mt-2 ps-1 small"><i class="fas fa-lock me-1"></i> System-assigned names are fixed for security auditing.</div>
                             </div>
                             
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Registrar Email</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-envelope"></i>
+                            <div class="premium-input-group mb-4">
+                                <label class="form-label mb-2">Registrar Email</label>
+                                <div class="input-wrapper">
                                     <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" required placeholder="registrar@tesda.gov.ph">
+                                    <i class="fas fa-envelope"></i>
                                 </div>
                             </div>
 
-                            <div class="form-group-custom">
-                                <label class="form-label-custom">Update Security Key</label>
-                                <div class="input-group-custom">
-                                    <i class="fas fa-shield-alt"></i>
+                            <div class="premium-input-group mb-4">
+                                <label class="form-label mb-2">Update Security Key</label>
+                                <div class="input-wrapper">
                                     <input type="password" name="password" class="form-control" placeholder="••••••••••••••">
+                                    <i class="fas fa-shield-alt"></i>
                                 </div>
-                                <div class="form-text mt-2 ps-2 text-primary fw-medium">
+                                <div class="form-text mt-2 ps-1 text-primary fw-medium small">
                                     <i class="fas fa-info-circle me-1"></i> Leave empty to maintain your current security standards.
                                 </div>
                             </div>
 
                             <div class="mt-5 pt-2">
-                                <button type="submit" name="update_profile" class="btn btn-primary btn-lg btn-save">
+                                <button type="submit" name="update_profile" class="btn btn-create-profile btn-lg px-5">
                                     <i class="fas fa-save me-2"></i> Update Official Profile
                                 </button>
                             </div>

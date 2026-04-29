@@ -65,7 +65,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute();
         if ($u = $stmt->get_result()->fetch_assoc()) {
             $userId = $u['user_id'];
-            $conn->query("DELETE FROM users WHERE user_id = $userId");
+            $delUser = $conn->prepare("DELETE FROM users WHERE user_id = ?");
+            $delUser->bind_param("i", $userId);
+            $delUser->execute();
+            $delUser->close();
+            
             logAudit(getCurrentUserId(), 'DELETE', 'students', $studentId, null, "Deleted student profile (ID: $studentId) and associated user account.");
             redirectWithMessage('students.php', 'Student and account deleted successfully', 'success');
         }
@@ -75,14 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $pageTitle = 'Manage Students';
 require_once '../includes/header.php';
 ?>
-<style>
-    .bg-dark-navy {
-        background-color: #0f172a !important;
-    }
-    .premium-card {
-        border-radius: 1rem;
-    }
-</style>
+
 <?php
 
 // === STEP 3: Fetch data ===
@@ -99,7 +96,7 @@ while ($d = $dept_res->fetch_assoc()) {
 }
 
 $students = $conn->query("
-    SELECT s.*, u.username, u.status as user_status, d.title_diploma_program as dept_name, p.program_name
+    SELECT s.*, u.username, u.profile_image, u.status as user_status, d.title_diploma_program as dept_name, p.program_name
     FROM students s
     JOIN users u ON s.user_id = u.user_id
     LEFT JOIN departments d ON s.dept_id = d.dept_id
@@ -108,87 +105,25 @@ $students = $conn->query("
 ");
 // === Premium Styles ===
 ?>
-<style>
-    .bg-dark-navy { background-color: #0f172a !important; }
-    .premium-card { border-radius: 1rem; }
-    .students-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.70rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
-    }
-    .students-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
-    }
-    /* Premium Action Buttons */
-    .btn-premium-edit {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none;
-        cursor: pointer;
-    }
-    .btn-premium-edit:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
 
-    .btn-premium-delete {
-        width: 36px; height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50%;
-        color: #ef4444 !important;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        border: none;
-        cursor: pointer;
-    }
-    .btn-premium-delete:hover {
-        background-color: #fef2f2;
-        border-color: #fecaca;
-        color: #dc2626 !important;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-    }
-</style>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
+    <div class="card-header gradient-navy p-3 d-flex flex-wrap justify-content-between align-items-center rounded-top gap-2">
         <h5 class="mb-0 text-white fw-bold ms-2">
             <i class="fas fa-user-graduate me-2 text-info"></i> Student Academic Registry
         </h5>
-        <div class="d-flex gap-2 pe-2">
+        <div class="d-flex gap-2 pe-2 flex-wrap">
             <button class="btn btn-outline-light btn-sm rounded-pill px-3 fw-bold border-0" onclick="window.location.reload()">
                 <i class="fas fa-sync-alt"></i>
             </button>
             <a href="generate_report.php?type=students" class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary">
-                <i class="fas fa-file-export me-2"></i> Export List
+                <i class="fas fa-file-export me-2"></i><span class="d-none d-sm-inline">Export List</span><span class="d-sm-none">Export</span>
             </a>
         </div>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 students-table data-table">
+            <table class="table table-hover align-middle mb-0 students-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-4">Student ID / No</th>
@@ -202,18 +137,22 @@ $students = $conn->query("
                 </thead>
                 <tbody>
                     <?php while ($student = $students->fetch_assoc()): ?>
-                    <tr>
+                    <tr class="table-row-premium align-middle">
                         <td class="ps-4" data-label="Student ID / No">
                             <span class="fw-bold text-primary">#<?php echo htmlspecialchars($student['student_no']); ?></span>
                         </td>
-                        <td data-label="Student Name & Identity">
+                        <td class="py-3" data-label="Student Name & Identity">
                             <div class="d-flex align-items-center">
-                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle" style="width: 38px; height: 38px;">
-                                    <i class="fas fa-user-graduate"></i>
+                                <div class="avatar-premium me-3 overflow-hidden">
+                                    <?php if (!empty($student['profile_image'])): ?>
+                                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($student['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-user-graduate"></i>
+                                    <?php endif; ?>
                                 </div>
-                                <div>
-                                    <div class="fw-bold text-dark"><?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></div>
-                                    <div class="text-muted" style="font-size: 0.70rem;"><i class="fas fa-fingerprint me-1"></i> UID: <?php echo $student['user_id']; ?></div>
+                                <div class="d-flex flex-column">
+                                    <span class="identity-name"><?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></span>
+                                    <span class="identity-meta">UID: <?php echo $student['user_id']; ?> • #<?php echo $student['student_no']; ?></span>
                                 </div>
                             </div>
                         </td>
@@ -229,33 +168,24 @@ $students = $conn->query("
                             <div class="small"><i class="fas fa-phone me-1 text-muted"></i> <?php echo htmlspecialchars($student['contact_number'] ?? 'N/A'); ?></div>
                         </td>
                         <td data-label="Status">
-                            <?php
-                                $statusColors = [
-                                    'active' => 'success',
-                                    'inactive' => 'secondary',
-                                    'graduated' => 'primary',
-                                    'dropped' => 'danger'
-                                ];
-                                $color = $statusColors[$student['status']] ?? 'secondary';
-                            ?>
-                            <span class="badge rounded-pill bg-<?php echo $color; ?> bg-opacity-10 text-<?php echo $color; ?> px-3">
-                                <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i> <?php echo ucfirst($student['status']); ?>
+                            <span class="status-pill status-<?php echo ($student['status'] === 'active') ? 'active' : 'inactive'; ?>">
+                                <div class="status-dot" style="background: <?php echo ($student['status'] === 'active') ? '#22c55e' : '#94a3b8'; ?>;"></div> <?php echo ucfirst($student['status']); ?>
                             </span>
                         </td>
-                        <td class="text-end pe-4" data-label="Control Actions">
-                            <div class="d-flex justify-content-end gap-2">
-                                <a href="view_student.php?id=<?php echo $student['student_id']; ?>" class="btn-premium-edit">
+                        <td class="text-end pe-4 py-3" data-label="Control Actions">
+                            <div class="table-actions-v2">
+                                <a href="view_student.php?id=<?php echo $student['student_id']; ?>" class="btn-premium-view">
                                     <i class="fas fa-eye"></i> View
                                 </a>
                                 <button class="btn-premium-edit" onclick='editStudent(<?php echo json_encode($student); ?>)'>
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this student record? This cannot be undone.')">
+                                <form method="POST" onsubmit="return confirm('Are you sure you want to delete this student record? This cannot be undone.')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="student_id" value="<?php echo $student['student_id']; ?>">
                                     <button type="submit" class="btn-premium-delete">
-                                        <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
                             </div>
@@ -268,121 +198,215 @@ $students = $conn->query("
     </div>
 </div>
 
-<div class="modal fade" id="editModal">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <form method="POST" autocomplete="off">
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <form method="POST" autocomplete="off" class="w-100">
             <input type="hidden" name="action" value="update">
             <input type="hidden" name="student_id" id="edit_student_id">
-            <div class="modal-content">
-                <div class="modal-header"><h5>Edit Student Profile</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-                <div class="modal-body">
-                    <div class="mb-3"><label>Student Number</label><input type="text" name="student_no" id="edit_student_no" class="form-control" required></div>
+            <div class="modal-content border-0">
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-edit"></i>
+                        <span>Edit Student Profile</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-id-card me-2"></i>Personal Details</span>
+                    </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>First Name</label>
-                            <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>First Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="first_name" id="edit_first_name" class="form-control" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Last Name</label>
-                            <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Middle Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Last Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="last_name" id="edit_last_name" class="form-control" required>
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Middle Name</label>
-                            <input type="text" name="middle_name" id="edit_middle_name" class="form-control">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Date of Birth</label>
+                                <div class="input-wrapper">
+                                    <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Birth Date</label>
-                            <input type="date" name="date_of_birth" id="edit_date_of_birth" class="form-control" required>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Gender</label>
+                                <div class="input-wrapper">
+                                    <select name="gender" id="edit_gender" class="form-select">
+                                        <option value="Male">Male</option>
+                                        <option value="Female">Female</option>
+                                    </select>
+                                    <i class="fas fa-venus-mars"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Religion</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="religion" id="edit_religion" class="form-control" list="religionlist">
+                                    <i class="fas fa-praying-hands"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-map-marker-alt me-2"></i>Contact & Location</span>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Contact Number</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
+                                    <i class="fas fa-phone-alt"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Email Address</label>
+                                <div class="input-wrapper">
+                                    <input type="email" name="email" id="edit_email" class="form-control">
+                                    <i class="fas fa-envelope"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Municipality/City</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="municipality" id="edit_municipality" class="form-control" list="municipalitylist">
+                                    <i class="fas fa-city"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Gender</label>
-                            <select name="gender" id="edit_gender" class="form-select">
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                            </select>
+                        <div class="col-md-12">
+                            <div class="premium-input-group">
+                                <label>Home Address</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="address" id="edit_address" class="form-control" list="addresslist">
+                                    <i class="fas fa-home"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Religion</label>
-                            <input type="text" name="religion" id="edit_religion" class="form-control" list="religionlist">
+                    </div>
+
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-graduation-cap me-2"></i>Academic Profile</span>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Student Number</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="student_no" id="edit_student_no" class="form-control" required>
+                                    <i class="fas fa-hashtag"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="premium-input-group">
+                                <label>Diploma Program</label>
+                                <div class="input-wrapper">
+                                    <select name="dept_id" id="edit_dept_id" class="form-select" required>
+                                        <option value="">-- Select Diploma Program --</option>
+                                        <?php foreach ($departments_list as $d): ?>
+                                            <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-university"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Program (Course)</label>
+                                <div class="input-wrapper">
+                                    <select name="program_id" id="edit_program_id" class="form-select" required>
+                                        <option value="">-- Select Program --</option>
+                                        <?php foreach ($all_programs as $p): ?>
+                                            <option value="<?php echo $p['program_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <i class="fas fa-certificate"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Home Address</label>
-                            <input type="text" name="address" id="edit_address" class="form-control" list="addresslist">
+                        <div class="col-md-3">
+                            <div class="premium-input-group">
+                                <label>Year Level</label>
+                                <div class="input-wrapper">
+                                    <select name="year_level" id="edit_year_level" class="form-select" required>
+                                        <option value="1">1st Year</option>
+                                        <option value="2">2nd Year</option>
+                                        <option value="3">3rd Year</option>
+                                        <option value="4">4th Year</option>
+                                    </select>
+                                    <i class="fas fa-level-up-alt"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Municipality/City</label>
-                            <input type="text" name="municipality" id="edit_municipality" class="form-control" list="municipalitylist">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Academic Honor</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="academic_honor" id="edit_academic_honor" class="form-control" placeholder="e.g. Cum Laude" list="honorlist">
+                                    <i class="fas fa-medal"></i>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Contact Number</label>
-                            <input type="text" name="contact_number" id="edit_contact_number" class="form-control">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Email</label>
-                            <input type="email" name="email" id="edit_email" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Program (Course)</label>
-                            <select name="program_id" id="edit_program_id" class="form-select" required>
-                                <option value="">-- Select Program --</option>
-                                <?php foreach ($all_programs as $p): ?>
-                                    <option value="<?php echo $p['program_id']; ?>"><?php echo htmlspecialchars($p['program_name']); ?></option>
-                                <?php
-endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                        <label class="form-label">Diploma Program</label>
-                        <select name="dept_id" id="edit_dept_id" class="form-select" required>
-                            <option value="">-- Select Diploma Program --</option>
-                            <?php foreach ($departments_list as $d): ?>
-                                <option value="<?php echo $d['dept_id']; ?>"><?php echo htmlspecialchars($d['title_diploma_program']); ?></option>
-                            <?php
-endforeach; ?>
-                        </select>
-                    </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Year Level</label>
-                            <select name="year_level" id="edit_year_level" class="form-select" required>
-                                <option value="1">1st Year</option>
-                                <option value="2">2nd Year</option>
-                                <option value="3">3rd Year</option>
-                                <option value="4">4th Year</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label>Status</label>
-                            <select name="status" id="edit_status" class="form-select" required>
-                                <option value="active">Active</option>
-                                <option value="inactive">Inactive</option>
-                                <option value="graduated">Graduated</option>
-                                <option value="dropped">Dropped (Clears Current Load)</option>
-                            </select>
-                            <div class="form-text small text-danger">Selecting 'Dropped' will automatically remove this student's current semester enrollments.</div>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Academic Honor / Title</label>
-                            <input type="text" name="academic_honor" id="edit_academic_honor" class="form-control" placeholder="e.g. Cum Laude, With Distinction" list="honorlist">
+                        <div class="col-md-5">
+                            <div class="premium-input-group">
+                                <label>Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select" required>
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                        <option value="graduated">Graduated</option>
+                                        <option value="dropped">Dropped (Clears Current Load)</option>
+                                    </select>
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                                <div class="mt-1 small text-danger"><i class="fas fa-exclamation-triangle ms-1 me-1"></i> 'Dropped' clears current enrollments</div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Profile</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-sync me-2"></i>Update Profile</button>
                 </div>
             </div>
         </form>

@@ -118,12 +118,13 @@ function calculateGWA($studentId)
 
     $stmt = $conn->prepare("
         SELECT 
-            SUM(g.grade * c.units) as weighted_sum,
-            SUM(c.units) as total_units
+            SUM(g.grade * s.units) as weighted_sum,
+            SUM(s.units) as total_units
         FROM grades g
         JOIN enrollments e ON g.enrollment_id = e.enrollment_id
         JOIN class_sections cs ON e.section_id = cs.section_id
-        JOIN courses c ON cs.course_id = c.course_id
+        JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+        JOIN subjects s ON cur.subject_id = s.subject_id
         WHERE g.student_id = ? 
         AND g.status = 'approved' 
         AND g.grade IS NOT NULL
@@ -156,26 +157,42 @@ function calculateGPA($studentId)
  * @param float $passingGrade
  * @return string
  */
-function getGradeRemark($grade, $passingGrade = 3.00)
+function getGradeRemark($grade, $passingGrade = null)
 {
     if ($grade === null || $grade == 0) {
         return 'INC';
     }
 
-    if ($grade <= 1.25)
-        return 'Excellent';
-    if ($grade <= 1.75)
-        return 'Very Good';
-    if ($grade <= 2.25)
-        return 'Good';
-    if ($grade <= 2.75)
-        return 'Satisfactory';
-    if ($grade <= $passingGrade)
-        return 'Passed';
-    if ($grade < 5.00)
-        return 'Conditional';
+    $gradingSystem = getSetting('grading_system', 'Numeric');
+    
+    if ($passingGrade === null) {
+        // Fallback defaults based on type
+        $passingGrade = ($gradingSystem === 'Numeric') ? 75.00 : 3.00;
+    }
 
-    return 'Failed';
+    if ($gradingSystem === 'Numeric') {
+        // In a Numeric system, higher is better (e.g. 75-100)
+        if ($grade >= $passingGrade) {
+            return 'Passed';
+        }
+        return 'Failed';
+    } else {
+        // In a CHED system, lower is better (e.g. 1.0-5.0)
+        if ($grade <= 1.25)
+            return 'Excellent';
+        if ($grade <= 1.75)
+            return 'Very Good';
+        if ($grade <= 2.25)
+            return 'Good';
+        if ($grade <= 2.75)
+            return 'Satisfactory';
+        if ($grade <= $passingGrade)
+            return 'Passed';
+        if ($grade < 5.00)
+            return 'Conditional';
+
+        return 'Failed';
+    }
 }
 
 /**
@@ -411,31 +428,42 @@ function uploadFile($file, $targetDir, $allowedTypes = ['jpg', 'jpeg', 'png', 'p
     }
 
     if ($file['size'] > UPLOAD_MAX_SIZE) {
-        return [false, 'File size exceeds maximum allowed size', null];
+        $maxMB = round(UPLOAD_MAX_SIZE / (1024 * 1024), 2);
+        $fileMB = round($file['size'] / (1024 * 1024), 2);
+        return [false, "File size ($fileMB MB) exceeds maximum allowed size ($maxMB MB)", null];
     }
 
     $fileExt = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
 
     if (!in_array($fileExt, $allowedTypes)) {
-        return [false, 'File type not allowed', null];
+        $allowedStr = strtoupper(implode(', ', $allowedTypes));
+        return [false, "File type $fileExt not allowed. Supported: $allowedStr", null];
     }
 
     // MIME type validation
-    $finfo = finfo_open(FILEINFO_MIME_TYPE);
-    $mimeType = finfo_file($finfo, $file['tmp_name']);
-    finfo_close($finfo);
+  $finfo = finfo_open(FILEINFO_MIME_TYPE);
+$rawMimeType = finfo_file($finfo, $file['tmp_name']);
+// No need to call finfo_close() anymore
+
+    // Normalize MIME type (remove charset info like "; charset=binary")
+    $mimeType = strtolower(explode(';', $rawMimeType)[0]);
 
     $allowedMimeTypes = [
-        'jpg' => 'image/jpeg',
-        'jpeg' => 'image/jpeg',
-        'png' => 'image/png',
-        'pdf' => 'application/pdf',
-        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        'jpg'  => ['image/jpeg', 'image/pjpeg'],
+        'jpeg' => ['image/jpeg', 'image/pjpeg'],
+        'png'  => ['image/png', 'image/x-png'],
+        'webp' => ['image/webp'],
+        'pdf'  => ['application/pdf'],
+        'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream']
     ];
 
-    $expectedMime = $allowedMimeTypes[$fileExt] ?? null;
-    if ($expectedMime && $mimeType !== $expectedMime) {
-        return [false, 'Invalid file content for the given extension', null];
+    $expectedMimes = $allowedMimeTypes[$fileExt] ?? null;
+    if ($expectedMimes && !in_array($mimeType, $expectedMimes)) {
+        // Special case: check for HEIC to provide helpful message
+        if ($mimeType === 'image/heic' || $mimeType === 'image/heif') {
+            return [false, 'iPhones use HEIC by default which is not web-ready. Please convert to JPG first.', null];
+        }
+        return [false, "Invalid file content ($mimeType) for the given extension ($fileExt).", null];
     }
 
     $filename = uniqid() . '_' . time() . '.' . $fileExt;
@@ -655,7 +683,7 @@ function checkStudentScheduleConflict($studentId, $sectionId, $semester, $school
     $conn = getDBConnection();
 
     // Get target section details
-    $targetStmt = $conn->prepare("SELECT schedule, course_id FROM class_sections WHERE section_id = ?");
+    $targetStmt = $conn->prepare("SELECT schedule, curriculum_id FROM class_sections WHERE section_id = ?");
     $targetStmt->bind_param("i", $sectionId);
     $targetStmt->execute();
     $target = $targetStmt->get_result()->fetch_assoc();
@@ -671,17 +699,18 @@ function checkStudentScheduleConflict($studentId, $sectionId, $semester, $school
 
     // Get all current active enrollments for this student/semester
     $stmt = $conn->prepare("
-        SELECT cs.section_name, cs.schedule, c.course_code, c.course_name 
+        SELECT cs.section_name, cs.schedule, s.subject_id, s.subject_name 
         FROM enrollments e
         JOIN class_sections cs ON e.section_id = cs.section_id
-        JOIN courses c ON cs.course_id = c.course_id
+        JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+        JOIN subjects s ON cur.subject_id = s.subject_id
         WHERE e.student_id = ? 
           AND cs.semester = ? 
           AND cs.school_year = ? 
           AND cs.status = 'active'
           AND e.status != 'dropped'
     ");
-    $stmt->bind_param("is s", $studentId, $semester, $schoolYear);
+    $stmt->bind_param("iss", $studentId, $semester, $schoolYear);
     $stmt->execute();
     $enrollments = $stmt->get_result();
 
@@ -707,12 +736,12 @@ function getScheduleRecommendations($courseId, $studentId, $semester, $schoolYea
 {
     $conn = getDBConnection();
 
-    // Get all other active sections for this course
+    // Get all other active sections for this subject
     $stmt = $conn->prepare("
         SELECT cs.*, 
                (SELECT COUNT(*) FROM enrollments WHERE section_id = cs.section_id AND status != 'dropped') as enrolled_count
         FROM class_sections cs
-        WHERE cs.course_id = ? 
+        WHERE cs.curriculum_id = ? 
           AND cs.semester = ? 
           AND cs.school_year = ? 
           AND cs.status = 'active'
@@ -770,9 +799,10 @@ function checkSectionConflict($instructorId, $room, $schedule, $semester, $schoo
     $conn = getDBConnection();
 
     // Check Instructor Conflict
-    $sql = "SELECT cs.*, c.course_code, c.course_name 
+    $sql = "SELECT cs.*, s.subject_id, s.subject_name 
             FROM class_sections cs 
-            JOIN courses c ON cs.course_id = c.course_id
+            JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+            JOIN subjects s ON cur.subject_id = s.subject_id
             WHERE cs.instructor_id = ? 
               AND cs.semester = ? 
               AND cs.school_year = ? 
@@ -796,16 +826,17 @@ function checkSectionConflict($instructorId, $room, $schedule, $semester, $schoo
         $existingParsed = parseSchedule($conflict['schedule']);
         if ($existingParsed && isScheduleOverlapping($targetParsed, $existingParsed)) {
             $stmt->close();
-            return ['type' => 'Instructor', 'msg' => "Instructor already has a class '{$conflict['course_code']}' at '{$conflict['schedule']}'.", 'data' => $conflict];
+            return ['type' => 'Instructor', 'msg' => "Instructor already has a class '{$conflict['subject_id']}' at '{$conflict['schedule']}'.", 'data' => $conflict];
         }
     }
     $stmt->close();
 
     // Check Room Conflict (ignore TBA)
     if (!empty($room) && strtoupper($room) !== 'TBA') {
-        $sql = "SELECT cs.*, c.course_code, c.course_name 
+        $sql = "SELECT cs.*, s.subject_id, s.subject_name 
                 FROM class_sections cs 
-                JOIN courses c ON cs.course_id = c.course_id
+                JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+                JOIN subjects s ON cur.subject_id = s.subject_id
                 WHERE cs.room = ? 
                   AND cs.semester = ? 
                   AND cs.school_year = ?
@@ -829,7 +860,7 @@ function checkSectionConflict($instructorId, $room, $schedule, $semester, $schoo
             $existingParsed = parseSchedule($conflict['schedule']);
             if ($existingParsed && isScheduleOverlapping($targetParsed, $existingParsed)) {
                 $stmt->close();
-                return ['type' => 'Room', 'msg' => "Room is already occupied by '{$conflict['course_code']}' at '{$conflict['schedule']}'.", 'data' => $conflict];
+                return ['type' => 'Room', 'msg' => "Room is already occupied by '{$conflict['subject_id']}' at '{$conflict['schedule']}'.", 'data' => $conflict];
             }
         }
         $stmt->close();
@@ -899,5 +930,69 @@ function clearLoginAttempts($ipAddress) {
     $stmt->bind_param("s", $ipAddress);
     $stmt->execute();
     $stmt->close();
+}
+/**
+ * Return a human-readable relative time string (e.g., "5 mins ago")
+ * @param string $datetime
+ * @return string
+ */
+function timeAgo($datetime)
+{
+    if (empty($datetime)) return "Never";
+    
+    $timestamp = strtotime($datetime);
+    $diff = time() - $timestamp;
+    
+    if ($diff < 60) return "Just now";
+    
+    $intervals = [
+        31536000 => 'year',
+        2592000 => 'month',
+        86400 => 'day',
+        3600 => 'hour',
+        60 => 'min'
+    ];
+    
+    foreach ($intervals as $secs => $label) {
+        $count = floor($diff / $secs);
+        if ($count >= 1) {
+            return $count . ' ' . $label . ($count > 1 ? 's' : '') . ' ago';
+        }
+    }
+    
+    return "Recently";
+}
+/**
+ * Safe Database Translator
+ * Maps legacy "Course" requirements to the new "Curriculum/Subject" schema.
+ */
+function getDepartmentGradesQuery($deptId, $limit = null) {
+    $conn = getDBConnection();
+    $limitSql = $limit ? "LIMIT " . (int)$limit : "";
+    
+    $sql = "
+        SELECT 
+            g.*, 
+            s.first_name, s.last_name, s.student_no,
+            subj.subject_id AS course_code, 
+            subj.subject_name AS course_name,
+            subj.units,
+            i.first_name AS inst_first, i.last_name AS inst_last
+        FROM grades g
+        JOIN enrollments e ON g.enrollment_id = e.enrollment_id
+        JOIN class_sections cs ON e.section_id = cs.section_id
+        JOIN students s ON e.student_id = s.student_id
+        JOIN curriculum cur ON cs.curriculum_id = cur.curriculum_id
+        JOIN subjects subj ON cur.subject_id = subj.subject_id
+        JOIN instructors i ON cs.instructor_id = i.instructor_id
+        WHERE cur.dept_id = ?
+        ORDER BY g.updated_at DESC
+        $limitSql
+    ";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $deptId);
+    $stmt->execute();
+    return $stmt->get_result();
 }
 ?>

@@ -83,6 +83,25 @@ Welcome to the official user manual for the TESDA-BCAT Grade Management System. 
 
 ---
 
+## 🛠️ 6. System Maintenance & Security
+*Focus: Long-term system stability and data protection.*
+
+### 6.1 Database Security (Crucial)
+- **Restricted Access**: The system uses a dedicated user (`tesda_app_user`) to connect to the database. Do **not** revert to the MySQL `root` account for the live application.
+- **Hidden Dashboard**: For security, the standard `phpmyadmin` URL has been obfuscated.
+  - **Private URL**: `http://localhost:8080/portal_db_admin_2026` 
+  - To change this again, modify the `Alias` line in `C:\xampp\apache\conf\extra\httpd-xampp.conf`.
+
+### 6.2 Filesystem Protection
+- **.htaccess Files**: These files in the root and sensitive directories (like `config/`) are responsible for blocking unauthorized browser access to your logic and passwords.
+- **Never delete or move these files**, especially when deploying to a new server or using a tunnel.
+
+### 6.3 Backup Procedures
+- Regularly export your database from the private dashboard.
+- Back up the `uploads/` directory, as it contains all important student documents.
+
+---
+
 ## ❓ Support
 - **Login Issues?** Contact your System Administrator to reset your password.
 - **Grade Discrepancies?** Contact your Registrar to verify if the grade has been formally approved.

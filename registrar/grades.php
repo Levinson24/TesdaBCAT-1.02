@@ -24,25 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         redirectWithMessage('grades.php', 'Unauthorized: Only the Head Registrar can process compliance records.', 'danger');
     }
     $gradeId = intval($_POST['grade_id']);
-    $midterm = floatval($_POST['midterm']);
-    $final = floatval($_POST['final']);
-
-    // Get weights from settings
-    $mWeight = floatval(getSetting('midterm_weight', 0.5));
-    $fWeight = floatval(getSetting('final_weight', 0.5));
+    $finalGrade = floatval($_POST['grade']);
+    
     $passingGrade = floatval(getSetting('passing_grade', 3.00));
-
-    // Calculate final grade
-    $finalGrade = ($midterm * $mWeight) + ($final * $fWeight);
     $remarks = getGradeRemark($finalGrade, $passingGrade);
 
     $stmt = $conn->prepare("
         UPDATE grades 
-        SET midterm = ?, final = ?, grade = ?, remarks = ?, 
+        SET grade = ?, remarks = ?, 
             status = 'approved', approved_by = ?, approved_at = NOW()
         WHERE grade_id = ?
     ");
-    $stmt->bind_param("dddsii", $midterm, $final, $finalGrade, $remarks, $userId, $gradeId);
+    $stmt->bind_param("dsii", $finalGrade, $remarks, $userId, $gradeId);
 
     if ($stmt->execute()) {
         redirectWithMessage('grades.php', 'Student compliance processed successfully. Record updated.', 'success');
@@ -57,14 +50,9 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_PO
         redirectWithMessage('grades.php', 'Invalid security token. Please try again.', 'danger');
     }
     $gradeId = intval($_POST['grade_id']);
-    $midterm = floatval($_POST['midterm']);
-    $final = floatval($_POST['final']);
+    $finalGrade = floatval($_POST['grade']);
     
-    $mWeight = floatval(getSetting('midterm_weight', 0.5));
-    $fWeight = floatval(getSetting('final_weight', 0.5));
     $passingGrade = floatval(getSetting('passing_grade', 3.00));
-    
-    $finalGrade = ($midterm * $mWeight) + ($final * $fWeight);
     $remarks = getGradeRemark($finalGrade, $passingGrade);
     $status = sanitizeInput($_POST['status'] ?? 'approved');
     
@@ -73,8 +61,8 @@ elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_PO
         redirectWithMessage('grades.php', 'Unauthorized: Registrar Staff cannot approve grades.', 'danger');
     }
 
-    $stmt = $conn->prepare("UPDATE grades SET midterm = ?, final = ?, grade = ?, remarks = ?, status = ? WHERE grade_id = ?");
-    $stmt->bind_param("dddssi", $midterm, $final, $finalGrade, $remarks, $status, $gradeId);
+    $stmt = $conn->prepare("UPDATE grades SET grade = ?, remarks = ?, status = ? WHERE grade_id = ?");
+    $stmt->bind_param("dssi", $finalGrade, $remarks, $status, $gradeId);
     if ($stmt->execute()) {
         redirectWithMessage('grades.php', 'Grade updated successfully.', 'success');
     } else {
@@ -112,14 +100,15 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     $csvWhere = $isStaff ? " WHERE s.dept_id = $deptId" : "";
     $csvResult = $conn->query("
         SELECT s.student_no, CONCAT(IFNULL(s.last_name,''),', ',IFNULL(s.first_name,'')) AS student_name,
-               c.course_code, c.course_name, cs.section_name, cs.semester, cs.school_year,
+               subj.subject_id, subj.subject_name, cs.section_name, cs.semester, cs.school_year,
                CONCAT(IFNULL(i.first_name,''),' ',IFNULL(i.last_name,'')) AS instructor_name,
                g.midterm, g.final, g.grade, g.remarks, g.status, g.submitted_at
         FROM grades g
         JOIN students s      ON g.student_id     = s.student_id
         JOIN enrollments e   ON g.enrollment_id  = e.enrollment_id
         JOIN class_sections cs ON e.section_id   = cs.section_id
-        JOIN courses c       ON cs.course_id     = c.course_id
+        JOIN curriculum cur  ON cs.curriculum_id = cur.curriculum_id
+        JOIN subjects subj   ON cur.subject_id   = subj.subject_id
         JOIN instructors i   ON cs.instructor_id = i.instructor_id
         $csvWhere
         ORDER BY cs.school_year DESC, cs.semester, s.last_name
@@ -128,13 +117,12 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="grade_records_' . date('Ymd_His') . '.csv"');
     $out = fopen('php://output', 'w');
     fputcsv($out, ['Student No', 'Student Name', 'Course Code', 'Subject Description', 'Section',
-        'Semester', 'School Year', 'Instructor', 'Midterm', 'Final', 'Grade',
+        'Semester', 'School Year', 'Instructor', 'Grade',
         'Remarks', 'Status', 'Submitted At']);
     while ($row = $csvResult->fetch_assoc()) {
         fputcsv($out, [
-            $row['student_no'], $row['student_name'], $row['course_code'], $row['course_name'],
+            $row['student_no'], $row['student_name'], $row['subject_id'], $row['subject_name'],
             $row['section_name'], $row['semester'], $row['school_year'], $row['instructor_name'],
-            number_format($row['midterm'] ?? 0, 2), number_format($row['final'] ?? 0, 2),
             $row['grade'] !== null ? number_format($row['grade'], 2) : '—', $row['remarks'],
             ucfirst($row['status']), $row['submitted_at']
         ]);
@@ -172,7 +160,7 @@ if (!empty($filterSem)) {
     $types .= "s";
 }
 if (!empty($filterSearch)) {
-    $where .= " AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_no LIKE ? OR c.course_code LIKE ?)";
+    $where .= " AND (s.first_name LIKE ? OR s.last_name LIKE ? OR s.student_no LIKE ? OR subj.subject_id LIKE ?)";
     $like = "%$filterSearch%";
     $params = array_merge($params, [$like, $like, $like, $like]);
     $types .= "ssss";
@@ -181,15 +169,16 @@ if (!empty($filterSearch)) {
 $baseSql = "
     SELECT g.grade_id, g.midterm, g.final, g.grade, g.remarks, g.status, g.submitted_at,
            s.student_id, s.student_no, CONCAT(IFNULL(s.last_name,''),', ',IFNULL(s.first_name,'')) AS student_name,
-           c.course_code, c.course_name, cs.section_name, cs.semester, cs.school_year,
+           subj.subject_id, subj.subject_name, cs.section_name, cs.semester, cs.school_year,
            CONCAT(IFNULL(i.first_name,''),' ',IFNULL(i.last_name,'')) AS instructor_name
-    FROM grades g
-    JOIN students s      ON g.student_id     = s.student_id
-    JOIN enrollments e   ON g.enrollment_id  = e.enrollment_id
-    JOIN class_sections cs ON e.section_id   = cs.section_id
-    JOIN courses c       ON cs.course_id     = c.course_id
-    JOIN instructors i   ON cs.instructor_id = i.instructor_id
-    $where ORDER BY g.submitted_at DESC
+    FROM enrollments e
+    JOIN students s      ON e.student_id     = s.student_id
+    LEFT JOIN grades g   ON e.enrollment_id  = g.enrollment_id
+    LEFT JOIN class_sections cs ON e.section_id   = cs.section_id
+    LEFT JOIN curriculum cur    ON cs.curriculum_id = cur.curriculum_id
+    LEFT JOIN subjects subj     ON cur.subject_id   = subj.subject_id
+    LEFT JOIN instructors i     ON cs.instructor_id = i.instructor_id
+    $where ORDER BY e.enrollment_date DESC
 ";
 if (!empty($params)) {
     $stmt = $conn->prepare($baseSql);
@@ -214,7 +203,7 @@ $avgGrade = $avgRow['avg'] ? number_format($avgRow['avg'], 2) : '—';
 
 // ─── Summary data ─────────────────────────────────────────────────────────────
 $courseSummary = $conn->query("
-    SELECT c.course_code, c.course_name, cs.school_year, cs.semester, cs.section_name,
+    SELECT s.subject_id, s.subject_name, cs.school_year, cs.semester, cs.section_name,
            CONCAT(i.first_name,' ',i.last_name) AS instructor_name,
            COUNT(g.grade_id) AS total_students,
            SUM(g.remarks='Passed') AS passed, SUM(g.remarks='Failed') AS failed,
@@ -223,11 +212,12 @@ $courseSummary = $conn->query("
     FROM grades g
     JOIN enrollments e   ON g.enrollment_id  = e.enrollment_id
     JOIN class_sections cs ON e.section_id   = cs.section_id
-    JOIN courses c       ON cs.course_id     = c.course_id
+    JOIN curriculum cur  ON cs.curriculum_id = cur.curriculum_id
+    JOIN subjects s      ON cur.subject_id   = s.subject_id
     JOIN instructors i   ON cs.instructor_id = i.instructor_id
     WHERE g.status IN ('approved','submitted')
-    GROUP BY c.course_code, cs.section_name, cs.semester, cs.school_year
-    ORDER BY cs.school_year DESC, cs.semester, c.course_code
+    GROUP BY s.subject_id, cs.section_name, cs.semester, cs.school_year
+    ORDER BY cs.school_year DESC, cs.semester, s.subject_id
 ");
 $instructorSummary = $conn->query("
     SELECT CONCAT(i.first_name,' ',i.last_name) AS instructor_name,
@@ -256,67 +246,9 @@ function buildHref($extra = [])
 
 <!-- ══════════════════════════════════════════ PAGE-LEVEL STYLES -->
 <style>
-/* ── Navy Blue Theme Overrides for this page ───────────── */
-/* Removed custom dark header and tabs - using standard Bootstrap nav-tabs on white */
-
-/* ── Stat Cards ─────────────────────────────────────────── */
-.stat-mini {
-    background: #fff;
-    border-radius: 1rem;
-    padding: 1.1rem 1.4rem;
-    border-left: 4px solid;
-    box-shadow: 0 2px 12px rgba(0, 56, 168, 0.08);
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-.stat-mini .stat-icon {
-    width: 46px; height: 46px;
-    border-radius: 0.75rem;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 1.2rem;
-}
-.stat-mini h4 { margin: 0; font-size: 1.6rem; font-weight: 800; line-height: 1; }
-.stat-mini small { color: #64748b; font-size: 0.8rem; font-weight: 500; }
-
-/* ── Table ──────────────────────────────────────────────── */
-.grade-table thead th {
-    background: #0038A8;
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.82rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border: none;
-    padding: 0.85rem 0.75rem;
-}
-.grade-table tbody tr:hover { background: #f0f6ff; }
-.grade-table tbody td { vertical-align: middle; font-size: 0.875rem; padding: 0.7rem 0.75rem; }
-.grade-table tbody tr:nth-child(even) { background: #fafbff; }
-
 /* ── Progress bar wrapper ───────────────────────────────── */
 .pass-bar { display: flex; align-items: center; gap: 8px; min-width: 120px; }
 .pass-bar .progress { flex: 1; height: 7px; border-radius: 4px; }
-
-/* ── Premium Action Buttons ───────────────────────── */
-.btn-premium-edit, .btn-premium-print, .btn-premium-delete {
-    width: 32px; height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    transition: all 0.2s;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    text-decoration: none !important;
-}
-.btn-premium-print { background-color: #f0f9ff; color: #0369a1 !important; }
-.btn-premium-print:hover { background-color: #0369a1; color: #fff !important; box-shadow: 0 4px 6px rgba(3,105,161,0.2); }
-.btn-premium-edit { background-color: #eff6ff; color: #2563eb !important; }
-.btn-premium-edit:hover { background-color: #2563eb; color: #fff !important; box-shadow: 0 4px 6px rgba(37,99,235,0.2); }
-.btn-premium-delete { background-color: #fef2f2; color: #ef4444 !important; }
-.btn-premium-delete:hover { background-color: #ef4444; color: #fff !important; box-shadow: 0 4px 6px rgba(239,68,68,0.2); }
 
 /* ══════════════ PRINT STYLES ══════════════════════════════ */
 @media print {
@@ -408,30 +340,31 @@ function buildHref($extra = [])
 </div>
 
 <!-- ══════════════════════════════════════════ STAT CARDS -->
-<div class="responsive-grid mb-4 stat-row">
-    <?php
-$stats = [
-    ['label' => 'Total Records', 'value' => $totalGrades, 'color' => '#0038A8', 'bg' => '#e8f0fb', 'icon' => 'fa-list-alt'],
-    ['label' => 'Graded', 'value' => $approvedCount, 'color' => '#198754', 'bg' => '#e6f4ed', 'icon' => 'fa-check-circle'],
-    ['label' => 'Passed', 'value' => $passedCount, 'color' => '#0d6efd', 'bg' => '#e7f1ff', 'icon' => 'fa-graduation-cap'],
-    ['label' => 'Failed', 'value' => $failedCount, 'color' => '#dc3545', 'bg' => '#fdecea', 'icon' => 'fa-times-circle'],
-    ['label' => 'INC', 'value' => $incCount, 'color' => '#f39c12', 'bg' => '#fef5e7', 'icon' => 'fa-exclamation-triangle'],
-    ['label' => 'Dropped', 'value' => $droppedCount, 'color' => '#6c757d', 'bg' => '#f8f9fa', 'icon' => 'fa-user-minus'],
-    ['label' => 'Avg Grade (GWA)', 'value' => $avgGrade, 'color' => '#e67e22', 'bg' => '#fef5e7', 'icon' => 'fa-chart-bar'],
-];
-foreach ($stats as $s): ?>
-    <div class="stat-mini" style="border-color:<?php echo $s['color']; ?>;">
-        <div class="stat-icon" style="background:<?php echo $s['bg']; ?>; color:<?php echo $s['color']; ?>;">
-            <i class="fas <?php echo $s['icon']; ?>"></i>
+    <div class="row g-3 mb-4 stat-row">
+        <?php
+        $stats = [
+            ['label' => 'Total Records', 'value' => $totalGrades, 'color' => '#0038A8', 'bg' => '#e8f0fb', 'icon' => 'fa-list-alt'],
+            ['label' => 'Graded', 'value' => $approvedCount, 'color' => '#198754', 'bg' => '#e6f4ed', 'icon' => 'fa-check-circle'],
+            ['label' => 'Passed', 'value' => $passedCount, 'color' => '#0d6efd', 'bg' => '#e7f1ff', 'icon' => 'fa-graduation-cap'],
+            ['label' => 'Failed', 'value' => $failedCount, 'color' => '#dc3545', 'bg' => '#fdecea', 'icon' => 'fa-times-circle'],
+            ['label' => 'INC', 'value' => $incCount, 'color' => '#f39c12', 'bg' => '#fef5e7', 'icon' => 'fa-exclamation-triangle'],
+            ['label' => 'Dropped', 'value' => $droppedCount, 'color' => '#6c757d', 'bg' => '#f8f9fa', 'icon' => 'fa-user-minus'],
+            ['label' => 'Avg Grade (GWA)', 'value' => $avgGrade, 'color' => '#e67e22', 'bg' => '#fef5e7', 'icon' => 'fa-chart-bar'],
+        ];
+        foreach ($stats as $s): ?>
+        <div class="col-md">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper" style="background: <?php echo $s['bg']; ?>; color: <?php echo $s['color']; ?>;">
+                    <i class="fas <?php echo $s['icon']; ?>"></i>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value" style="color: <?php echo $s['color']; ?>;"><?php echo $s['value']; ?></span>
+                    <span class="stat-label"><?php echo $s['label']; ?></span>
+                </div>
+            </div>
         </div>
-        <div>
-            <h4 style="color:<?php echo $s['color']; ?>;"><?php echo $s['value']; ?></h4>
-            <small><?php echo $s['label']; ?></small>
-        </div>
+        <?php endforeach; ?>
     </div>
-    <?php
-endforeach; ?>
-</div>
 
 
 <!-- ══════════════════════════════════════════ ACADEMIC FREEDOM NOTICE -->
@@ -565,7 +498,7 @@ endforeach; ?>
         </p>
 
         <div class="table-responsive">
-            <table class="table table-bordered table-mobile-card grade-table">
+            <table class="table table-hover align-middle mb-0 grade-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-3 small">#</th>
@@ -574,8 +507,7 @@ endforeach; ?>
                         <th>Section</th>
                         <th style="width: 100px;">SY / Sem</th>
                         <th>Instructor</th>
-                        <th class="text-center">Midterm</th>
-                        <th class="text-center">Final</th>
+                        <!-- Unified Grading -> removed midterm/final -->
                         <th class="text-center">Grade</th>
                         <th class="text-center">Remarks</th>
                         <th class="text-center">Status</th>
@@ -596,14 +528,13 @@ endforeach; ?>
                                 <small class="text-muted"><?php echo htmlspecialchars($g['student_no'] ?? ''); ?></small>
                             </td>
                             <td data-label="Course">
-                                <strong><?php echo htmlspecialchars($g['course_code'] ?? ''); ?></strong><br>
-                                <small class="text-muted"><?php echo htmlspecialchars($g['course_name'] ?? ''); ?></small>
+                                <strong><?php echo htmlspecialchars($g['subject_id'] ?? ''); ?></strong><br>
+                                <small class="text-muted"><?php echo htmlspecialchars($g['subject_name'] ?? ''); ?></small>
                             </td>
                             <td data-label="Section"><?php echo htmlspecialchars($g['section_name'] ?? ''); ?></td>
                             <td data-label="SY / Sem"><?php echo htmlspecialchars(($g['semester'] ?? '') . ' ' . ($g['school_year'] ?? '')); ?></td>
                             <td data-label="Instructor"><?php echo htmlspecialchars($g['instructor_name'] ?? ''); ?></td>
-                            <td class="text-center fw-bold" data-label="Midterm"><?php echo number_format($g['midterm'] ?? 0, 2); ?></td>
-                            <td class="text-center fw-bold" data-label="Final"><?php echo number_format($g['final'] ?? 0, 2); ?></td>
+                            <!-- Unified Grading -> removed midterm/final -->
                             <td class="text-center" data-label="Grade">
                                 <strong class="<?php
             if ($g['remarks'] === 'Passed')
@@ -614,6 +545,8 @@ endforeach; ?>
                 echo 'text-warning';
             elseif ($g['remarks'] === 'Dropped')
                 echo 'text-secondary';
+            elseif ($g['remarks'] === 'Incomplete')
+                echo 'text-info';
 ?>" style="font-size:1rem;">
                                     <?php echo $g['grade'] !== null ? number_format($g['grade'], 2) : '—'; ?>
                                 </strong>
@@ -629,32 +562,38 @@ endforeach; ?>
                 $rc = 'warning';
             elseif ($g['remarks'] === 'Dropped')
                 $rc = 'secondary';
+            elseif ($g['remarks'] === 'Incomplete')
+                $rc = 'info';
 ?>
                                 <span class="badge bg-<?php echo $rc; ?>"><?php echo htmlspecialchars($g['remarks'] ?? ''); ?></span>
                             </td>
-                            <td class="text-center" data-label="Status">
+                             <td class="text-center" data-label="Status">
                                 <?php
-            $sc = ['approved' => 'success', 'submitted' => 'success', 'pending' => 'secondary', 'rejected' => 'danger'];
-            $sl = ['approved' => 'Graded', 'submitted' => 'Graded', 'pending' => 'Pending', 'rejected' => 'Rejected'];
-            $st = $g['status'];
-            echo '<span class="badge bg-' . ($sc[$st] ?? 'secondary') . '">' . ($sl[$st] ?? ucfirst($st)) . '</span>';
-?>
+                                $sc = ['approved' => 'active', 'submitted' => 'active', 'pending' => 'inactive', 'rejected' => 'inactive'];
+                                $sl = ['approved' => 'Graded', 'submitted' => 'Graded', 'pending' => 'Pending', 'rejected' => 'Rejected'];
+                                $st = $g['status'] ?? 'pending';
+                                $dotColor = ($st === 'approved' || $st === 'submitted') ? '#22c55e' : ($st === 'pending' ? '#f59e0b' : '#ef4444');
+                                ?>
+                                <span class="status-pill status-<?php echo $sc[$st] ?? 'inactive'; ?>">
+                                    <div class="status-dot" style="background: <?php echo $dotColor; ?>;"></div> <?php echo $sl[$st] ?? ($g['status'] === null ? 'Enrolled' : ucfirst($st)); ?>
+                                </span>
                             </td>
                             <td data-label="Submitted"><small><?php echo $g['submitted_at'] ? formatDateTime($g['submitted_at']) : '—'; ?></small></td>
 
                              <td class="no-print text-center pe-3">
-                                <div class="d-flex justify-content-center gap-2">
-                                    <button class="btn-premium-edit" 
-                                            onclick='openEditGradeModal(<?php echo htmlspecialchars(json_encode($g), ENT_QUOTES, 'UTF-8'); ?>)' 
-                                            title="Edit Grade Information">
-                                        <i class="fas fa-edit"></i>
-                                    </button>
-                                    <a href="print_grade_slip.php?student_id=<?php echo urlencode($g['student_id'] ?? ''); ?>&semester=<?php echo urlencode($g['semester'] ?? ''); ?>&school_year=<?php echo urlencode($g['school_year'] ?? ''); ?>" 
-                                       target="_blank" 
-                                       class="btn-premium-print" 
-                                       title="Print Grade Slip">
-                                        <i class="fas fa-receipt"></i>
-                                    </a>
+                                 <div class="d-flex justify-content-center gap-2">
+                                     <?php if ($g['grade_id']): ?>
+                                     <button class="btn-premium-edit" 
+                                             onclick='openEditGradeModal(<?php echo htmlspecialchars(json_encode($g), ENT_QUOTES, 'UTF-8'); ?>)' 
+                                             title="Edit Grade Information">
+                                         <i class="fas fa-edit"></i>
+                                     </button>
+                                     <a href="print_grade_slip.php?student_id=<?php echo urlencode($g['student_id'] ?? ''); ?>&semester=<?php echo urlencode($g['semester'] ?? ''); ?>&school_year=<?php echo urlencode($g['school_year'] ?? ''); ?>" 
+                                        target="_blank" 
+                                        class="btn-premium-print" 
+                                        title="Print Grade Slip">
+                                         <i class="fas fa-receipt"></i>
+                                     </a>
                                     <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this grade record?')">
                                         <?php csrfField(); ?>
                                         <input type="hidden" name="action" value="delete_grade">
@@ -663,14 +602,17 @@ endforeach; ?>
                                             <i class="fas fa-trash-alt"></i>
                                         </button>
                                     </form>
-                                </div>
+                                     <?php else: ?>
+                                         <span class="badge bg-light text-muted border px-2 py-1 small italic">Pending Grade</span>
+                                     <?php endif; ?>
+                                 </div>
                             </td>
                         </tr>
                         <?php
         endwhile; ?>
                     <?php
     else: ?>
-                        <tr><td colspan="12" class="text-center text-muted py-5">
+                        <tr><td colspan="11" class="text-center text-muted py-5">
                             <i class="fas fa-inbox fa-2x d-block mb-2"></i>No grade records found.
                         </td></tr>
                     <?php
@@ -684,7 +626,7 @@ elseif ($activeTab === 'summary'): ?>
     <!-- ══════════ TAB: COURSE SUMMARY ═══════════════════════════════════════ -->
 
         <div class="table-responsive">
-            <table class="table table-bordered table-mobile-card grade-table">
+            <table class="table table-hover align-middle mb-0 grade-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-3">Course</th>
@@ -704,8 +646,8 @@ elseif ($activeTab === 'summary'): ?>
             $pr = floatval($cs['pass_rate']); ?>
                         <tr>
                             <td class="ps-3" data-label="Course">
-                                <strong><?php echo htmlspecialchars($cs['course_code'] ?? ''); ?></strong><br>
-                                <small class="text-muted"><?php echo htmlspecialchars($cs['course_name'] ?? ''); ?></small>
+                                <strong><?php echo htmlspecialchars($cs['subject_id'] ?? ''); ?></strong><br>
+                                <small class="text-muted"><?php echo htmlspecialchars($cs['subject_name'] ?? ''); ?></small>
                             </td>
                             <td data-label="Section / Semester"><?php echo htmlspecialchars(($cs['section_name'] ?? '') . ' | ' . ($cs['semester'] ?? '') . ' ' . ($cs['school_year'] ?? '')); ?></td>
                             <td data-label="Instructor"><?php echo htmlspecialchars($cs['instructor_name'] ?? ''); ?></td>
@@ -732,7 +674,7 @@ elseif ($activeTab === 'summary'): ?>
         endwhile; ?>
                     <?php
     else: ?>
-                        <tr><td colspan="8" class="text-center text-muted py-5">
+                        <tr><td colspan="11" class="text-center text-muted py-5">
                             <i class="fas fa-inbox fa-2x d-block mb-2"></i>No data available.
                         </td></tr>
                     <?php
@@ -746,7 +688,7 @@ elseif ($activeTab === 'instructor'): ?>
     <!-- ══════════ TAB: BY INSTRUCTOR ═════════════════════════════════════════ -->
 
         <div class="table-responsive">
-            <table class="table table-bordered table-mobile-card grade-table">
+            <table class="table table-hover align-middle mb-0 grade-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-3">Instructor</th>
@@ -812,102 +754,144 @@ endif; ?>
 
 <!-- ══════════════════════════════════════════ COMPLIANCE MODAL -->
 <div class="modal fade" id="complianceModal" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="POST">
-            <?php csrfField(); ?>
-            <input type="hidden" name="action" value="compliance">
-            <input type="hidden" name="grade_id" id="comp_grade_id">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-file-signature me-2 text-warning"></i> Process Compliance</h5>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off" class="w-100">
+                <?php csrfField(); ?>
+                <input type="hidden" name="action" value="compliance">
+                <input type="hidden" name="grade_id" id="comp_grade_id">
+                <div class="modal-header modal-premium-header gradient-navy">
+                    <h5 class="modal-title">
+                        <i class="fas fa-file-signature"></i>
+                        <span>Process Compliance</span>
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="alert alert-warning py-2 mb-3">
-                        <small><i class="fas fa-info-circle"></i> Updating record for: <strong id="comp_student_name"></strong></small>
+                <div class="modal-body p-4">
+                    <div class="alert alert-warning py-2 mb-4 d-flex align-items-center rounded-3 bg-warning bg-opacity-10 border-warning border-opacity-25 text-warning-emphasis">
+                        <i class="fas fa-info-circle me-2 fs-5"></i> 
+                        <div>Updating record for: <strong id="comp_student_name"></strong></div>
+                    </div>
+                    
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-calculator me-2"></i>Grade Computation</span>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Midterm Grade</label>
-                            <input type="number" name="midterm" id="comp_midterm" class="form-control" 
-                                   step="0.01" min="1.00" max="5.00" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold">Final Grade</label>
-                            <input type="number" name="final" id="comp_final" class="form-control" 
-                                   step="0.01" min="1.00" max="5.00" required>
+                        <div class="col-md-12 mb-3">
+                            <div class="premium-input-group">
+                                <label>Final Grade (1.00 - 5.00)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" name="grade" id="comp_grade" class="form-control" step="0.01" min="1.00" max="5.00" required>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer bg-light border-0 py-3">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-info rounded-pill px-4 fw-bold">
-                        <i class="fas fa-check-circle me-1"></i> Save and Approve
-                    </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-check-circle me-2"></i>Save and Approve</button>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
 <!-- ══════════════════════════════════════════ EDIT GRADE MODAL -->
 <div class="modal fade" id="editGradeModal" tabindex="-1">
-    <div class="modal-dialog">
-        <form method="POST">
-            <?php csrfField(); ?>
-            <input type="hidden" name="action" value="update_grade">
-            <input type="hidden" name="grade_id" id="edit_grade_id">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header gradient-navy text-white py-3 px-4 border-0 rounded-top-4">
-                    <h5 class="modal-title fw-bold"><i class="fas fa-edit me-2 text-warning"></i> Edit Grade Record</h5>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off" class="w-100">
+                <?php csrfField(); ?>
+                <input type="hidden" name="action" value="update_grade">
+                <input type="hidden" name="grade_id" id="edit_grade_id">
+                <div class="modal-header modal-premium-header gradient-navy">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i>
+                        <span>Edit Grade Record</span>
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="alert alert-info py-2 mb-3 small">
-                        <i class="fas fa-info-circle"></i> Modifying record for: <strong id="edit_student_name"></strong>
+                <div class="modal-body p-4">
+                    <div class="alert alert-info py-2 mb-4 d-flex align-items-center rounded-3 bg-info bg-opacity-10 border-info border-opacity-25 text-info-emphasis">
+                        <i class="fas fa-info-circle me-2 fs-5"></i> 
+                        <div>Modifying record for: <strong id="edit_student_name"></strong></div>
+                    </div>
+                    
+                    <div class="form-section-divider">
+                        <span><i class="fas fa-graduation-cap me-2"></i>Academic Record</span>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold small">Midterm</label>
-                            <input type="number" name="midterm" id="edit_midterm" class="form-control" 
-                                   step="0.01" min="1.00" max="5.00" required>
+                        <div class="col-md-12 mb-3">
+                            <div class="premium-input-group">
+                                <label>Grade (1.00 - 5.00)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" name="grade" id="edit_grade" class="form-control" step="0.01" min="1.00" max="5.00" required>
+                                    <i class="fas fa-star"></i>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label fw-bold small">Final</label>
-                            <input type="number" name="final" id="edit_final" class="form-control" 
-                                   step="0.01" min="1.00" max="5.00" required>
+                        <div class="col-md-12 mb-3">
+                            <div class="premium-input-group">
+                                <label>Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select">
+                                        <option value="approved">Graded (Approved)</option>
+                                        <option value="submitted">Submitted</option>
+                                        <option value="pending">Pending</option>
+                                    </select>
+                                    <i class="fas fa-clipboard-check"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold small">Status</label>
-                        <select name="status" id="edit_status" class="form-select">
-                            <option value="approved">Graded (Approved)</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="pending">Pending</option>
-                        </select>
-                    </div>
                 </div>
-                <div class="modal-footer bg-light border-0 py-3">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4 fw-bold" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">
-                        <i class="fas fa-save me-1"></i> Save Changes
-                    </button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-save me-2"></i>Save Changes</button>
                 </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
 
 <script>
+// Modal Trigger Functions
 function openEditGradeModal(data) {
     document.getElementById('edit_grade_id').value = data.grade_id;
     document.getElementById('edit_student_name').innerText = data.student_name;
-    document.getElementById('edit_midterm').value = data.midterm || '';
-    document.getElementById('edit_final').value = data.final || '';
+    document.getElementById('edit_grade').value = data.grade || '';
     document.getElementById('edit_status').value = data.status;
-    
     new bootstrap.Modal(document.getElementById('editGradeModal')).show();
 }
+
+function openComplianceModal(id, name, grade) {
+    document.getElementById('comp_grade_id').value = id;
+    document.getElementById('comp_student_name').innerText = name;
+    document.getElementById('comp_grade').value = grade || '';
+    new bootstrap.Modal(document.getElementById('complianceModal')).show();
+}
+
+// DataTables and Form Logic
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize DataTables
+    if ($.fn.DataTable) {
+        $('.data-table').DataTable({
+            responsive: true,
+            pageLength: 10,
+            order: [[0, 'asc']]
+        });
+    }
+
+    // Quick Subject Form Submission Logic
+    const quickForm = document.getElementById('quickSubjectForm');
+    if (quickForm) {
+        quickForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            // ... insert your fetch/ajax logic here ...
+        });
+    }
+});
 </script>
 
 <?php require_once '../includes/footer.php'; ?>

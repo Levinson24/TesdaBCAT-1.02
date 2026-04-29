@@ -15,7 +15,7 @@ $deptName = $profile['dept_name'] ?? 'Your Diploma Program';
 
 // Fetch instructors for THIS department only
 $stmt = $conn->prepare("
-    SELECT i.*, u.username, u.last_login
+    SELECT i.*, u.username, u.profile_image, u.last_login
     FROM instructors i
     JOIN users u ON i.user_id = u.user_id
     WHERE i.dept_id = ?
@@ -75,7 +75,18 @@ require_once '../includes/header.php';
                     <?php while ($i = $instructors->fetch_assoc()): ?>
                     <tr>
                         <td><strong><?php echo htmlspecialchars($i['instructor_id_no']); ?></strong></td>
-                        <td><?php echo htmlspecialchars($i['first_name'] . ' ' . $i['last_name']); ?></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-sm me-3 bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center rounded-circle overflow-hidden" style="width: 35px; height: 35px;">
+                                    <?php if (!empty($i['profile_image'])): ?>
+                                        <img src="<?php echo BASE_URL; ?>uploads/profile_pics/<?php echo htmlspecialchars($i['profile_image']); ?>?v=<?php echo time(); ?>" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+                                    <?php else: ?>
+                                        <i class="fas fa-chalkboard-teacher"></i>
+                                    <?php endif; ?>
+                                </div>
+                                <div><?php echo htmlspecialchars($i['first_name'] . ' ' . $i['last_name']); ?></div>
+                            </div>
+                        </td>
                         <td><?php echo htmlspecialchars($i['specialization'] ?? 'N/A'); ?></td>
                         <td>
                             <span class="badge bg-<?php echo $i['status'] === 'active' ? 'success' : 'secondary'; ?>">

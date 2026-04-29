@@ -57,83 +57,31 @@ $colleges = $conn->query("
 ");
 // === Premium Styles ===
 ?>
-<style>
-    .premium-card { border-radius: 1rem; }
-    .bg-dark-navy { background-color: #0f172a !important; }
-    .colleges-table thead th {
-        background-color: #f8fafc;
-        color: #64748b;
-        font-weight: 700;
-        text-transform: uppercase;
-        font-size: 0.7rem;
-        letter-spacing: 0.1em;
-        padding: 1rem;
-        border-top: none;
-    }
-    .colleges-table tbody td {
-        padding: 1.25rem 1rem;
-        vertical-align: middle;
-        color: #334155;
-        font-size: 0.85rem;
-    }
-    /* Premium Action Buttons */
-    .btn-premium-edit {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.4rem 1.2rem;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50px;
-        color: #334155 !important;
-        font-weight: 600;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    .btn-premium-edit:hover {
-        background-color: #f1f5f9;
-        border-color: #cbd5e0;
-        color: #1e293b !important;
-        box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-    }
-    .btn-premium-edit i { color: #2563eb; margin-right: 0.5rem; }
 
-    .btn-premium-delete {
-        width: 36px; height: 36px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 50%;
-        color: #ef4444;
-        transition: all 0.2s;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        border: none;
-        cursor: pointer;
-    }
-    .btn-premium-delete:hover {
-        background-color: #fef2f2;
-        border-color: #fecaca;
-        color: #dc2626;
-        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
-    }
-</style>
 
 <div class="card premium-card mb-4 shadow-sm border-0">
-    <div class="card-header bg-dark-navy p-3 d-flex justify-content-between align-items-center rounded-top">
-        <h5 class="mb-0 text-white fw-bold ms-2">
-            <i class="fas fa-university me-2 text-info"></i> Higher Education Colleges
+    <div class="card-header gradient-navy p-3 d-flex flex-wrap justify-content-between align-items-center rounded-top gap-3">
+        <h5 class="mb-0 text-white fw-bold ms-2 flex-grow-1">
+            <i class="fas fa-university me-2 text-info"></i> Academic Portfolios (Colleges)
         </h5>
+        
+        <div class="search-box-container">
+            <div class="input-group input-group-sm rounded-pill overflow-hidden border-0 shadow-sm" style="background: rgba(255,255,255,0.15); backdrop-filter: blur(5px);">
+                <span class="input-group-text bg-transparent border-0 text-white-50 ps-3">
+                    <i class="fas fa-search"></i>
+                </span>
+                <input type="text" id="collegeSearchInput" class="form-control bg-transparent border-0 text-white placeholder-light" placeholder="Search College Name or Code..." onkeyup="filterColleges()" style="box-shadow: none;">
+                <span class="input-group-text bg-transparent border-0 text-white-50 pe-3" id="searchCounter" style="font-size: 0.75rem; font-weight: 600;"></span>
+            </div>
+        </div>
+
         <button class="btn btn-light btn-sm rounded-pill px-4 shadow-sm fw-bold border-0 text-primary me-2" data-bs-toggle="modal" data-bs-target="#addModal">
             <i class="fas fa-plus me-1"></i> Add College
         </button>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 colleges-table data-table">
+            <table class="table table-hover align-middle mb-0 colleges-table premium-table data-table">
                 <thead>
                     <tr>
                         <th class="ps-4">INSTITUTION CODE</th>
@@ -145,26 +93,26 @@ $colleges = $conn->query("
                 </thead>
                 <tbody>
                     <?php while ($c = $colleges->fetch_assoc()): ?>
-                    <tr>
+                    <tr class="table-row-premium align-middle">
                         <td class="ps-4" data-label="Code"><strong><?php echo htmlspecialchars($c['college_code']); ?></strong></td>
                         <td data-label="College Name"><?php echo htmlspecialchars($c['college_name']); ?></td>
                         <td data-label="Diploma Programs"><span class="badge bg-info bg-opacity-10 text-info"><?php echo $c['dept_count']; ?></span></td>
                         <td data-label="Status">
-                            <span class="badge rounded-pill bg-<?php echo $c['status'] === 'active' ? 'success' : 'secondary'; ?> bg-opacity-10 text-<?php echo $c['status'] === 'active' ? 'success' : 'secondary'; ?> px-3">
-                                <?php echo ucfirst($c['status']); ?>
+                            <span class="status-pill <?php echo $c['status'] === 'active' ? 'status-active' : 'status-inactive'; ?>">
+                                <?php echo ucfirst($c['status'] ?? 'active'); ?>
                             </span>
                         </td>
-                        <td class="text-end pe-4" data-label="Control Actions">
-                            <div class="d-flex justify-content-end gap-1">
+                        <td class="text-end pe-4 py-3" data-label="Control Actions">
+                            <div class="table-actions-v2">
                                 <button class="btn-premium-edit" onclick='editCollege(<?php echo json_encode($c); ?>)'>
                                     <i class="fas fa-edit"></i> Edit
                                 </button>
-                                <form method="POST" style="display:inline;" onsubmit="return confirm('Delete this college?')">
+                                <form method="POST" onsubmit="return confirm('Delete this college?')">
                                     <?php csrfField(); ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="college_id" value="<?php echo $c['college_id']; ?>">
                                     <button type="submit" class="btn-premium-delete">
-                                        <i class="fas fa-trash"></i>
+                                        <i class="fas fa-trash-alt"></i>
                                     </button>
                                 </form>
                             </div>
@@ -180,27 +128,45 @@ endwhile; ?>
 
 <!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off">
                 <input type="hidden" name="action" value="create">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add College</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-university"></i>
+                        <span>Add College</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label>College Code</label>
-                        <input type="text" name="college_code" class="form-control" placeholder="e.g. BCAT" required>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-info-circle me-2"></i>Institution Details</span>
                     </div>
-                    <div class="mb-3">
-                        <label>College Name</label>
-                        <input type="text" name="college_name" class="form-control" placeholder="e.g. Balicuatro College of Arts and Trades" required>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>College Code</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="college_code" class="form-control" placeholder="e.g. BCAT" required>
+                                    <i class="fas fa-qrcode"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="premium-input-group">
+                                <label>College Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="college_name" class="form-control" placeholder="e.g. Balicuatro College of Arts and Trades" required>
+                                    <i class="fas fa-quote-left"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save College</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-save me-2"></i>Save College</button>
                 </div>
             </form>
         </div>
@@ -209,35 +175,58 @@ endwhile; ?>
 
 <!-- Edit Modal -->
 <div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content">
-            <form method="POST">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content border-0">
+            <form method="POST" autocomplete="off">
                 <input type="hidden" name="action" value="update">
                 <input type="hidden" name="college_id" id="edit_id">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit College</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <div class="modal-header modal-premium-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit"></i>
+                        <span>Edit College</span>
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label>College Code</label>
-                        <input type="text" name="college_code" id="edit_code" class="form-control" required>
+                <div class="modal-body p-4">
+                    <div class="form-section-divider" style="margin-top: 0;">
+                        <span><i class="fas fa-sliders-h me-2"></i>Update Details</span>
                     </div>
-                    <div class="mb-3">
-                        <label>College Name</label>
-                        <input type="text" name="college_name" id="edit_name" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label>Status</label>
-                        <select name="status" id="edit_status" class="form-select">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>College Code</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="college_code" id="edit_code" class="form-control" required>
+                                    <i class="fas fa-qrcode"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>College Name</label>
+                                <div class="input-wrapper">
+                                    <input type="text" name="college_name" id="edit_name" class="form-control" required>
+                                    <i class="fas fa-quote-left"></i>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="premium-input-group">
+                                <label>Status</label>
+                                <div class="input-wrapper">
+                                    <select name="status" id="edit_status" class="form-select">
+                                        <option value="active">Active</option>
+                                        <option value="inactive">Inactive</option>
+                                    </select>
+                                    <i class="fas fa-toggle-on"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update College</button>
+                    <button type="button" class="btn btn-discard" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-create-profile"><i class="fas fa-sync me-2"></i>Update College</button>
                 </div>
             </form>
         </div>
@@ -251,6 +240,40 @@ function editCollege(c) {
     document.getElementById('edit_name').value = c.college_name;
     document.getElementById('edit_status').value = c.status;
     new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+// Filter colleges locally
+function filterColleges() {
+    const input = document.getElementById('collegeSearchInput');
+    const filter = input.value.toLowerCase().trim();
+    const table = document.querySelector('.colleges-table');
+    if (!table) return;
+    const tr = table.getElementsByTagName('tr');
+    const counter = document.getElementById('searchCounter');
+    let visibleCount = 0;
+
+    for (let i = 1; i < tr.length; i++) {
+        let rowMatch = false;
+        const tds = tr[i].getElementsByTagName('td');
+        for (let j = 0; j < tds.length; j++) {
+            if (tds[j].textContent.toLowerCase().indexOf(filter) > -1) {
+                rowMatch = true;
+                break;
+            }
+        }
+        
+        if (rowMatch) {
+            tr[i].style.display = "";
+            visibleCount++;
+        } else {
+            tr[i].style.display = "none";
+        }
+    }
+
+    if (filter === "") {
+        counter.textContent = "";
+    } else {
+        counter.textContent = visibleCount + " found";
+    }
 }
 </script>
 

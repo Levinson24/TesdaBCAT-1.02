@@ -15,7 +15,7 @@ if (!isLoggedIn() || getCurrentUserRole() !== 'admin') {
 }
 
 $conn = getDBConnection();
-$sql = "SELECT user_id, status, last_login, last_activity, session_start, last_ip FROM users";
+$sql = "SELECT user_id, username, role, status, last_login, last_activity, session_start, last_ip FROM users";
 $result = $conn->query($sql);
 
 // Fetch last document actions for all users
@@ -76,6 +76,8 @@ while ($user = $result->fetch_assoc()) {
     }
 
     $userData[$user['user_id']] = [
+        'username' => $user['username'],
+        'role' => $user['role'],
         'status' => $status,
         'isOnline' => $isOnline,
         'sessionDuration' => $sessionDuration,

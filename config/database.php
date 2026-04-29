@@ -6,13 +6,13 @@
 
 // Database connection parameters
 define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_USER', 'tesda_app_user');
+define('DB_PASS', 'TesdaSecurePortal#2026');
 define('DB_NAME', 'tesda_db');
 define('DB_CHARSET', 'utf8mb4');
 
 // Environment settings
-define('ENVIRONMENT', 'production'); // Change to 'production' on live server
+define('ENVIRONMENT', 'development'); // Change to 'production' on live server
 
 // Application settings
 define('APP_NAME', 'TESDA-BCAT GMS');
@@ -20,7 +20,9 @@ define('APP_VERSION', '1.0.2');
 
 // Dynamic BASE_URL detection
 if (!defined('BASE_URL')) {
-    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
+    // Support Cloudflare/Proxy HTTPS detection
+    $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' || 
+                 isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') ? "https" : "http";
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     
     // Calculate base path based on the location of this file (config/database.php)
